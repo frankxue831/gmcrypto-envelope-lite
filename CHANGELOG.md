@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - The boundary-scanner self-test now probes whether the environment can create symlink and FIFO fixtures (Windows Git Bash copies `ln -s` sources by default) and skips only those checks where the fixture cannot exist; Windows CI sets `MSYS=winsymlinks:nativestrict` to keep full assertion coverage with real native symlinks.
+- The denylist literal-path self-test no longer embeds a backslash in a single path component, which Windows path handling treats as a directory separator; backslash literalness is covered by a dedicated check that runs where such names round-trip.
 
 ### Added
 

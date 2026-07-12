@@ -79,6 +79,26 @@ else
     echo "SKIP: FIFO fixtures are unsupported here; skipping FIFO checks" >&2
 fi
 
+# Windows path handling treats a backslash as a directory separator, so a
+# backslash cannot survive inside a single path component there.
+backslash_component_supported() {
+    backslash_dir="$tmp/probe-backslash"
+    rm -rf "$backslash_dir" || return 1
+    mkdir -p "$backslash_dir/literal\\-probe" 2>/dev/null || return 1
+    backslash_listing=$(find "$backslash_dir" -type d -print 2>/dev/null) || return 1
+    case $backslash_listing in
+        *'literal\-probe'*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+if backslash_component_supported; then
+    backslash_components=1
+else
+    backslash_components=0
+    echo "SKIP: backslash path components are unsupported here; skipping backslash checks" >&2
+fi
+
 new_export() {
     name=$1
     root="$tmp/$name"
@@ -325,7 +345,7 @@ fi
 grep -F "$token" "$output" >/dev/null 2>&1 && fail "newline filename token leaked"
 
 root=$(new_export policy-literal-glob)
-token='literal-*?[]\-sentinel'
+token='literal-*?[]-sentinel'
 policy="$tmp/literal-glob-policy.txt"
 printf '%s\n' "$token" >"$policy"
 mkdir -p "$root/src/literal-XX-sentinel"
@@ -336,6 +356,21 @@ if OPEN_SOURCE_DENYLIST_FILE="$policy" "$scanner" "$root" >"$output" 2>&1; then
     fail "literal glob denylist path: expected rejection"
 fi
 grep -F "$token" "$output" >/dev/null 2>&1 && fail "literal glob token leaked"
+
+if [ "$backslash_components" -eq 1 ]; then
+    root=$(new_export policy-literal-backslash)
+    token='literal-\-sentinel'
+    policy="$tmp/literal-backslash-policy.txt"
+    printf '%s\n' "$token" >"$policy"
+    mkdir -p "$root/src/literal--sentinel"
+    OPEN_SOURCE_DENYLIST_FILE="$policy" expect_accept "literal backslash near miss" "$root" env
+    mkdir -p "$root/src/$token"
+    output="$tmp/output"
+    if OPEN_SOURCE_DENYLIST_FILE="$policy" "$scanner" "$root" >"$output" 2>&1; then
+        fail "literal backslash denylist path: expected rejection"
+    fi
+    grep -F "$token" "$output" >/dev/null 2>&1 && fail "literal backslash token leaked"
+fi
 
 root=$(new_export policy-worktree-exclusions)
 token=$(printf '%s%s' 'worktree-path-' 'sentinel')
