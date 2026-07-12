@@ -1,0 +1,29 @@
+[package]
+name = "secure-envelope-lite"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "HTTP-neutral SM2/SM3 and SM4 secure-envelope primitives"
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/frankxue831/secure-envelope-lite"
+keywords = ["sm2", "sm3", "sm4", "cryptography", "envelope"]
+categories = ["cryptography", "encoding"]
+publish = false
+exclude = [".worktrees/**", "tests/**", "tools/**", "docs/superpowers/**"]
+
+[lib]
+name = "secure_envelope_lite"
+path = "src/lib.rs"
+
+[dependencies]
+base64 = "0.22.1"
+getrandom = { version = "0.4.0", features = ["sys_rng"] }
+gmcrypto-core = { version = "=1.9.0", features = ["x509"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+zeroize = "1.8"
+
+[dev-dependencies]
+serde_json = "1.0"

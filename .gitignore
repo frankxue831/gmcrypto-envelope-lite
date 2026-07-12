@@ -1,0 +1,6 @@
+/.worktrees/
+/target/
+/dist/
+/public-export/
+/package-export/
+/package-files.txt

@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --all-targets --locked
+      - name: Exercise open-source boundary scanner
+        shell: bash
+        run: sh tests/open_source_boundary.sh
+
+  msrv:
+    name: Rust 1.85 MSRV
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --all-targets --locked
+
+  quality:
+    name: Formatting, lint, docs, policy, release boundary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --doc --locked
+      - run: RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps
+      - name: Install dependency-policy checker
+        run: cargo install cargo-deny --version 0.20.2 --locked
+      - run: cargo deny check
+      - name: Verify current checkout boundary
+        run: ./ci/check-open-source-boundary.sh --worktree .
+      - name: Verify complete repository export
+        shell: bash
+        run: |
+          set -euo pipefail
+          export_dir=$(mktemp -d)
+          trap 'rm -rf "$export_dir"' EXIT
+          mkdir "$export_dir/tree"
+          git archive HEAD | tar -x -C "$export_dir/tree"
+          ./ci/check-open-source-boundary.sh "$export_dir/tree"
+      - name: Build and verify Cargo package
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_dir=$(mktemp -d)
+          trap 'rm -rf "$package_dir"' EXIT
+          export CARGO_TARGET_DIR="$package_dir/target"
+
+          cargo package --locked --list >"$package_dir/files"
+          if grep -Ei '(^|/)(tests|tools|docs|\.worktrees)(/|$)|\.(pem|der|key|p12|pfx)$' \
+            "$package_dir/files" >"$package_dir/matches" 2>"$package_dir/grep-errors"; then
+            grep_status=0
+          else
+            grep_status=$?
+          fi
+          case $grep_status in
+            0)
+              echo "error: excluded material is present in the Cargo package" >&2
+              exit 1
+              ;;
+            1) ;;
+            *)
+              echo "error: package-list scan failure" >&2
+              exit 2
+              ;;
+          esac
+
+          for required in \
+            LICENSE \
+            README.md \
+            src/lib.rs \
+            examples/build_request.rs \
+            examples/open_response.rs
+          do
+            if grep -Fx -- "$required" "$package_dir/files" \
+              >/dev/null 2>"$package_dir/grep-errors"; then
+              grep_status=0
+            else
+              grep_status=$?
+            fi
+            case $grep_status in
+              0) ;;
+              1)
+                echo "error: required material is missing from the Cargo package" >&2
+                exit 1
+                ;;
+              *)
+                echo "error: package-list scan failure" >&2
+                exit 2
+                ;;
+            esac
+          done
+
+          cargo package --locked
+          find "$CARGO_TARGET_DIR/package" -maxdepth 1 -type f -name '*.crate' -print \
+            >"$package_dir/crates" 2>"$package_dir/find-errors" || {
+              echo "error: unable to locate Cargo package" >&2
+              exit 2
+            }
+          if [ "$(wc -l <"$package_dir/crates")" -ne 1 ]; then
+            echo "error: expected exactly one Cargo package" >&2
+            exit 1
+          fi
+          IFS= read -r crate <"$package_dir/crates"
+          mkdir "$package_dir/unpacked"
+          tar -xzf "$crate" -C "$package_dir/unpacked"
+          find "$package_dir/unpacked" -mindepth 1 -maxdepth 1 -print \
+            >"$package_dir/roots" 2>"$package_dir/find-errors" || {
+              echo "error: unable to inspect Cargo package" >&2
+              exit 2
+            }
+          if [ "$(wc -l <"$package_dir/roots")" -ne 1 ]; then
+            echo "error: expected exactly one Cargo package root" >&2
+            exit 1
+          fi
+          IFS= read -r crate_root <"$package_dir/roots"
+          if [ ! -d "$crate_root" ] || [ -L "$crate_root" ]; then
+            echo "error: invalid Cargo package root" >&2
+            exit 1
+          fi
+          ./ci/check-open-source-boundary.sh "$crate_root"
