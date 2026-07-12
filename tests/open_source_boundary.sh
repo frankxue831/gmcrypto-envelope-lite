@@ -43,6 +43,42 @@ sha256_of_file() {
 
 [ -x "$scanner" ] || fail "open-source boundary scanner is missing or not executable"
 
+# Windows Git Bash copies `ln -s` sources instead of linking unless MSYS
+# winsymlinks is configured, and some filesystems cannot host FIFOs. Probe
+# each fixture kind through the same predicate the scanner uses, and skip
+# only the checks whose fixture cannot exist in this environment.
+special_fixture_supported() {
+    fixture_kind=$1
+    fixture_dir="$tmp/probe-$fixture_kind"
+    rm -rf "$fixture_dir" || return 1
+    mkdir -p "$fixture_dir" || return 1
+    case $fixture_kind in
+        symlink)
+            printf '%s\n' probe >"$fixture_dir/probe-target" || return 1
+            ln -s probe-target "$fixture_dir/probe-link" 2>/dev/null || return 1
+            ;;
+        fifo)
+            mkfifo "$fixture_dir/probe.fifo" 2>/dev/null || return 1
+            ;;
+        *) return 1 ;;
+    esac
+    special_listing=$(find "$fixture_dir" ! -type d ! -type f -print 2>/dev/null) || return 1
+    [ -n "$special_listing" ]
+}
+
+if special_fixture_supported symlink; then
+    symlink_fixtures=1
+else
+    symlink_fixtures=0
+    echo "SKIP: symlink fixtures are unsupported here; skipping symlink checks" >&2
+fi
+if special_fixture_supported fifo; then
+    fifo_fixtures=1
+else
+    fifo_fixtures=0
+    echo "SKIP: FIFO fixtures are unsupported here; skipping FIFO checks" >&2
+fi
+
 new_export() {
     name=$1
     root="$tmp/$name"
@@ -130,11 +166,13 @@ root=$(new_export windows-path)
 printf '%s:\\%s\\alice\\project\n' 'C' 'Users' >"$root/src/path.txt"
 expect_reject "Windows user path" "$root" env
 
-root=$(new_export symlink)
 outside="$tmp/outside.txt"
 printf '%s\n' outside >"$outside"
-ln -s "$outside" "$root/nested directory/outside link"
-expect_reject "symlink outside excluded directories" "$root" env
+if [ "$symlink_fixtures" -eq 1 ]; then
+    root=$(new_export symlink)
+    ln -s "$outside" "$root/nested directory/outside link"
+    expect_reject "symlink outside excluded directories" "$root" env
+fi
 
 root=$(new_export complete-root-target)
 mkdir -p "$root/target"
@@ -158,8 +196,10 @@ expect_reject "complete export nested git directory" "$root" env
 
 root=$(new_export worktree-root-exclusions)
 mkdir -p "$root/.git/objects" "$root/target/debug"
-ln -s "$outside" "$root/.git/objects/outside"
-ln -s "$outside" "$root/target/debug/outside"
+if [ "$symlink_fixtures" -eq 1 ]; then
+    ln -s "$outside" "$root/.git/objects/outside"
+    ln -s "$outside" "$root/target/debug/outside"
+fi
 printf '/%s/alice/project\n' 'home' >"$root/.git/metadata"
 printf '/%s/alice/project\n' 'home' >"$root/target/build.txt"
 expect_worktree_accept "worktree root metadata and build directories" "$root"
@@ -192,17 +232,21 @@ for literal_root_name in 'worktree-root-*' 'worktree-root-?' 'worktree-root-['; 
     expect_worktree_reject "worktree nested paths with literal-pattern root" "$root"
 done
 
-root=$(new_export worktree-target-symlink)
-ln -s "$outside" "$root/target"
-expect_worktree_reject "worktree root target symlink" "$root"
+if [ "$symlink_fixtures" -eq 1 ]; then
+    root=$(new_export worktree-target-symlink)
+    ln -s "$outside" "$root/target"
+    expect_worktree_reject "worktree root target symlink" "$root"
 
-root=$(new_export worktree-git-symlink)
-ln -s "$outside" "$root/.git"
-expect_worktree_reject "worktree root git symlink" "$root"
+    root=$(new_export worktree-git-symlink)
+    ln -s "$outside" "$root/.git"
+    expect_worktree_reject "worktree root git symlink" "$root"
+fi
 
-root=$(new_export fifo)
-mkfifo "$root/src/blocking.fifo"
-expect_reject "FIFO ordinary-file impostor" "$root" env
+if [ "$fifo_fixtures" -eq 1 ]; then
+    root=$(new_export fifo)
+    mkfifo "$root/src/blocking.fifo"
+    expect_reject "FIFO ordinary-file impostor" "$root" env
+fi
 
 for variant in plain encrypted; do
     root=$(new_export "private-$variant")

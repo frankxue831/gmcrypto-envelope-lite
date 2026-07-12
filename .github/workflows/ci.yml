@@ -22,6 +22,10 @@ jobs:
       - run: cargo test --all-targets --locked
       - name: Exercise open-source boundary scanner
         shell: bash
+        env:
+          # Git Bash copies `ln -s` sources by default; native symlinks keep
+          # the self-test's special-file fixtures real on Windows runners.
+          MSYS: winsymlinks:nativestrict
         run: sh tests/open_source_boundary.sh
 
   msrv:
