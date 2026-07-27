@@ -1,5 +1,5 @@
 [package]
-name = "secure-envelope-lite"
+name = "gmcrypto-envelope-lite"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
@@ -10,10 +10,21 @@ repository = "https://github.com/frankxue831/secure-envelope-lite"
 keywords = ["sm2", "sm3", "sm4", "cryptography", "envelope"]
 categories = ["cryptography", "encoding"]
 publish = false
-exclude = [".worktrees/**", "tests/**", "tools/**", "docs/superpowers/**"]
+exclude = [
+    ".github/**",
+    ".worktrees/**",
+    "api/**",
+    "ci/**",
+    "deny.toml",
+    "fuzz/**",
+    "RELEASE_CHECKLIST.md",
+    "tests/**",
+    "tools/**",
+    "docs/superpowers/**",
+]
 
 [lib]
-name = "secure_envelope_lite"
+name = "gmcrypto_envelope_lite"
 path = "src/lib.rs"
 
 [dependencies]

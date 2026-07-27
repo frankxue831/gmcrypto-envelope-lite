@@ -31,6 +31,8 @@ pub trait ProtocolAdapter: Send + Sync {
 }
 
 /// Selects whether encrypted content is carried in the body or in a header.
+/// The two variants intentionally exhaust the transport-neutral locations supported by
+/// `HeaderProtocolAdapter`; new wire models belong in a custom [`ProtocolAdapter`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CipherLocation {
     /// Carry encrypted content in the transport body.
@@ -267,6 +269,12 @@ impl HeaderSchemaBuilder {
     }
 
     /// Selects legacy plaintext authentication explicitly.
+    ///
+    /// # Security
+    ///
+    /// This adapter signs plaintext only and cannot produce context-bound authentication.
+    /// Use authenticated TLS, replay defense, and request/response correlation. A custom
+    /// [`ProtocolAdapter`] is required when the wire supports context-bound signatures.
     #[must_use]
     pub fn legacy_authentication(mut self) -> Self {
         self.legacy_authentication = true;

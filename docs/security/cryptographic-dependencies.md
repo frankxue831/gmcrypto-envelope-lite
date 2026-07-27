@@ -1,0 +1,42 @@
+# Cryptographic Dependency Inventory
+
+**Inventory version:** 1
+
+- Reviewed Cargo.lock SHA-256: `c0bf1eb1197d63c32e09abb007436a9998a698072facfe1fd4815fe2cffacf3e`
+- Root crate policy: `#![forbid(unsafe_code)]`
+- Backend registry checksum: `d93a065728aef78f84e82e2b3de88dc9ef8d504b35351657b0000ee9fe682d6d`
+
+The reviewed boundary is the exact package, version, enabled-feature, registry-checksum, and source-scan-status snapshot in `ci/crypto-inventory.snapshot`. `ci/check-crypto-inventory.sh` obtains enabled feature edges from `cargo tree --locked -e features`, associates each checksum with its Cargo.lock package stanza, and fails if that view or the reviewed boundary changes.
+
+| Dependency | Resolved version | Enabled features | Registry checksum | Source-scan status | SDK responsibility |
+| --- | --- | --- | --- | --- | --- |
+| `base64` | `0.22.1` | `alloc`, `default`, `std` | `72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6` | reviewed: no unsafe source | Standard-padded encoded envelope fields plus SDK canonicality checks |
+| `getrandom` | `0.4.3` | `default`, `sys_rng` | `300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099` | reviewed: unsafe source present | Operating-system randomness for each session key and request metadata |
+| `gmcrypto-core` | `1.9.0` | `default`, `x509` | `d93a065728aef78f84e82e2b3de88dc9ef8d504b35351657b0000ee9fe682d6d` | reviewed: no unsafe source | SM2 signing, verification and wrapping; SM3; SM4; PKCS#8, SPKI, PEM, and X.509 parsing |
+| `crypto-bigint` | `0.7.5` | `subtle`, `zeroize` | `1a52aa3fcda4e6302a9f48734f234d35d4721b96f8fe07d073f07ce9df4f0271` | reviewed: unsafe source present | Backend integer arithmetic |
+| `ctutils` | `0.4.2` | `default`, `subtle` | `7d5515a3834141de9eafb9717ad39eea8247b5674e6066c404e8c4b365d2a29e` | reviewed: no unsafe source | Backend constant-time selection and equality utilities |
+| `cmov` | `0.5.4` | `default` | `0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a` | reviewed: unsafe source present | Backend architecture-specific conditional-move primitives |
+| `cpubits` | `0.1.1` | `default` | `15b85f9c39137c3a891689859392b1bd49812121d0d61c9caf00d46ed5ce06ae` | reviewed: no unsafe source | Backend CPU-width bit utilities |
+| `rand_core` | `0.10.1` | `default` | `63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69` | reviewed: no unsafe source | Backend RNG trait boundary |
+| `spin` | `0.10.1` | `once` | `023a211cb3138dbc438680b32560ad89f699977624c9f8dbb95a47d5b4c07dd3` | reviewed: unsafe source present | Backend one-time initialization support |
+| `subtle` | `2.6.1` | `none` | `13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292` | reviewed: unsafe source present | Backend constant-time utility boundary |
+| `zeroize` | `1.9.0` | `alloc`, `default`, `derive`, `zeroize_derive` | `e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e` | reviewed: unsafe source present | SDK-owned session-key, plaintext, and authentication-input guards |
+| `zeroize_derive` | `1.5.0` | `default` | `3c50655cbb0fe3fc43170059e702f1ce5e19b84cec58dc87b037a09935c2f328` | reviewed: no unsafe source | Macro implementation used by zeroization derives |
+
+The direct manifest request is `gmcrypto-core` | `1.9.0` | `x509`; its enabled feature set also includes `default`.
+
+For the `spin` 0.10.0 to 0.10.1 lock refresh, the reviewed manifest retains the `once` feature and otherwise changes only the package version. The runtime-source delta is limited to `src/once.rs`: `Once::force_into_inner` now uses `ManuallyDrop` with `assume_init_read` to prevent a double drop, and the crate adds a regression test for moving out a boxed value. The unsafe-source classification therefore remains `reviewed: unsafe source present`. This records the dependency review; it does not claim that this SDK directly exercised the affected consuming APIs.
+
+Each source-scan status is limited to the exact registry checksum in its row and means only whether an unsafe item or unsafe block was found in that package's Rust source during review; it is not an audit or a safety proof. The reviewed `gmcrypto-core` 1.9.0 manifest also sets `unsafe_code = "forbid"`, limited to the checksum above.
+
+Platform plumbing such as `cfg-if`, `libc`, and `r-efi` is intentionally outside this cryptographic boundary because it selects or binds operating-system facilities rather than implementing the reviewed cryptographic primitives. It remains pinned by Cargo.lock and therefore changes still invalidate the recorded lockfile hash. This boundary is not a claim that every transitive dependency, platform implementation, compiler, allocator, or operating system has been source-reviewed.
+
+No universal constant-time claim is made. The backend describes constant-time design, but this SDK has not independently established timing, cache, power, electromagnetic, fault-injection, compiler, operating-system, allocator, or hardware behavior.
+
+## Evidence
+
+Public SM2 verification, SM3, and SM4 known-answer tests live in `tests/standard_vectors.rs`. SDK-level negative tests cover wrong roles and keys, malformed and wrong-length wrapped keys, padding and ciphertext changes, malformed and changed signatures, strict Base64, context mismatch, and opaque inbound errors. Private deployed-wire compatibility remains external.
+
+## Update policy
+
+Any direct or resolved cryptographic dependency, feature, registry checksum, or Cargo.lock change invalidates this inventory. Update it only after reviewing the new source and manifest, rerunning known-answer and semantic-negative tests, running dependency policy, updating the recorded lockfile checksum and machine-readable snapshot, and producing a new RC artifact identity.

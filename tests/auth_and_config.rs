@@ -1,4 +1,4 @@
-use secure_envelope_lite::{
+use gmcrypto_envelope_lite::{
     AdapterError, AdapterErrorKind, AuthenticationContext, AuthenticationMode, ClientConfig,
     ClientConfigBuilder, ClientIdentity, DEFAULT_MAX_PLAINTEXT_BYTES, Error,
 };

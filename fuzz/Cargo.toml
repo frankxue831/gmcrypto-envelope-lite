@@ -1,0 +1,37 @@
+[package]
+name = "gmcrypto-envelope-lite-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+gmcrypto-core = { version = "=1.9.0", features = ["x509"] }
+libfuzzer-sys = "0.4"
+gmcrypto-envelope-lite = { path = ".." }
+
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "transport_parts"
+path = "fuzz_targets/transport_parts.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "encoded_envelope"
+path = "fuzz_targets/encoded_envelope.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "typed_headers"
+path = "fuzz_targets/typed_headers.rs"
+test = false
+doc = false
+bench = false

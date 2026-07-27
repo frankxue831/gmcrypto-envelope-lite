@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use std::sync::Arc;
 
-use secure_envelope_lite::{
+use gmcrypto_envelope_lite::{
     AuthenticationMode, CipherLocation, ClientConfig, HeaderProtocolAdapter, HeaderSchema,
     KeyMaterial, PrivateKey, PublicKey, SecureClient,
 };
@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn example_client(keys: KeyMaterial) -> secure_envelope_lite::Result<SecureClient> {
+fn example_client(keys: KeyMaterial) -> gmcrypto_envelope_lite::Result<SecureClient> {
     let config = ClientConfig::builder()
         .local_identity_id("demo-client")
         .api_version("example-v1")
@@ -65,12 +65,12 @@ fn example_client(keys: KeyMaterial) -> secure_envelope_lite::Result<SecureClien
         config,
         keys,
         Arc::new(HeaderProtocolAdapter::new(
-            example_schema().map_err(|_| secure_envelope_lite::Error::ProtocolAdapter)?,
+            example_schema().map_err(|_| gmcrypto_envelope_lite::Error::ProtocolAdapter)?,
         )),
     ))
 }
 
-fn example_schema() -> Result<HeaderSchema, secure_envelope_lite::AdapterError> {
+fn example_schema() -> Result<HeaderSchema, gmcrypto_envelope_lite::AdapterError> {
     HeaderSchema::builder()
         .static_request_header("Content-Type", "application/example-envelope")
         .local_identity_header("X-Envelope-Local-Identity")

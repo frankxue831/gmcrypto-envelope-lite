@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use secure_envelope_lite::{
+use gmcrypto_envelope_lite::{
     AdapterError, AdapterErrorKind, AdapterResult, AuthenticationContext, CipherLocation,
     ClientIdentity, HeaderName, HeaderProtocolAdapter, HeaderSchema, HeaderSchemaBuilder,
     ParsedResponse, ProtocolAdapter, ProtocolRequestContext, RequestMetadata, RequestParts,

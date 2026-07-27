@@ -224,6 +224,26 @@ printf '/%s/alice/project\n' 'home' >"$root/.git/metadata"
 printf '/%s/alice/project\n' 'home' >"$root/target/build.txt"
 expect_worktree_accept "worktree root metadata and build directories" "$root"
 
+root=$(new_export worktree-root-fuzz-target)
+mkdir -p "$root/fuzz/target/debug"
+printf '/%s/alice/project\n' 'home' >"$root/fuzz/target/debug/build.key"
+if [ "$symlink_fixtures" -eq 1 ]; then
+    ln -s "$outside" "$root/fuzz/target/debug/outside"
+fi
+if [ "$fifo_fixtures" -eq 1 ]; then
+    mkfifo "$root/fuzz/target/debug/build.fifo"
+fi
+expect_worktree_accept "worktree root fuzz build output" "$root"
+expect_reject "complete export root fuzz target directory" "$root" env
+
+for scanned_path in src/target other/target fuzz/corpus fuzz/artifacts; do
+    fixture_name=$(printf '%s' "$scanned_path" | tr / -)
+    root=$(new_export "worktree-scans-$fixture_name")
+    mkdir -p "$root/$scanned_path"
+    printf '/%s/alice/project\n' 'home' >"$root/$scanned_path/path.txt"
+    expect_worktree_reject "worktree scans $scanned_path" "$root"
+done
+
 root=$(new_export worktree-metadata)
 printf '/%s/%s/alice/repository\n' 'Users' 'local' >"$root/.git"
 expect_worktree_accept "worktree metadata file" "$root"
@@ -240,9 +260,10 @@ expect_worktree_reject "worktree nested git directory" "$root"
 
 for literal_root_name in 'worktree-root-*' 'worktree-root-?' 'worktree-root-['; do
     root=$(new_export "$literal_root_name")
-    mkdir -p "$root/.git" "$root/target"
+    mkdir -p "$root/.git" "$root/target" "$root/fuzz/target"
     printf '/%s/alice/project\n' 'home' >"$root/.git/path.txt"
     printf '/%s/alice/project\n' 'home' >"$root/target/path.txt"
+    printf '/%s/alice/project\n' 'home' >"$root/fuzz/target/path.txt"
     expect_reject "complete mode with literal-pattern root" "$root" env
     expect_worktree_accept "worktree exact prune with literal-pattern root" "$root"
 
@@ -376,13 +397,13 @@ root=$(new_export policy-worktree-exclusions)
 token=$(printf '%s%s' 'worktree-path-' 'sentinel')
 policy="$tmp/worktree-path-policy.txt"
 printf '%s\n' "$token" >"$policy"
-mkdir -p "$root/.git/$token" "$root/target/$token"
+mkdir -p "$root/.git/$token" "$root/target/$token" "$root/fuzz/target/$token"
 OPEN_SOURCE_DENYLIST_FILE="$policy" "$scanner" --worktree "$root" >"$tmp/output" 2>&1 || \
     fail "worktree root exclusions were scanned by denylist"
 if OPEN_SOURCE_DENYLIST_FILE="$policy" "$scanner" "$root" >"$tmp/output" 2>&1; then
     fail "complete mode ignored denylist in root exclusions"
 fi
-rm -rf "$root/.git" "$root/target"
+rm -rf "$root/.git" "$root/target" "$root/fuzz/target"
 mkdir -p "$root/src/.git/$token" "$root/src/target/$token"
 if OPEN_SOURCE_DENYLIST_FILE="$policy" "$scanner" --worktree "$root" >"$tmp/output" 2>&1; then
     fail "worktree mode ignored denylist in nested paths"

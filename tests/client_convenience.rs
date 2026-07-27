@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
-use secure_envelope_lite::{
+use gmcrypto_envelope_lite::{
     AdapterError, AdapterErrorKind, AdapterResult, AuthenticationContext, AuthenticationMode,
     ClientIdentity, Error, HeaderProtocolAdapter, ParsedResponse, ProtocolAdapter,
     ProtocolRequestContext, RequestBuilder, RequestContext, RequestMetadata, RequestParts,

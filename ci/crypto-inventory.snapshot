@@ -1,0 +1,13 @@
+# name|version|enabled-features|registry-checksum|unsafe-source-scan-status
+base64|0.22.1|alloc,default,std|72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6|reviewed-no-unsafe-source
+cmov|0.5.4|default|0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a|reviewed-unsafe-present
+cpubits|0.1.1|default|15b85f9c39137c3a891689859392b1bd49812121d0d61c9caf00d46ed5ce06ae|reviewed-no-unsafe-source
+crypto-bigint|0.7.5|subtle,zeroize|1a52aa3fcda4e6302a9f48734f234d35d4721b96f8fe07d073f07ce9df4f0271|reviewed-unsafe-present
+ctutils|0.4.2|default,subtle|7d5515a3834141de9eafb9717ad39eea8247b5674e6066c404e8c4b365d2a29e|reviewed-no-unsafe-source
+getrandom|0.4.3|default,sys_rng|300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099|reviewed-unsafe-present
+gmcrypto-core|1.9.0|default,x509|d93a065728aef78f84e82e2b3de88dc9ef8d504b35351657b0000ee9fe682d6d|reviewed-no-unsafe-source
+rand_core|0.10.1|default|63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69|reviewed-no-unsafe-source
+spin|0.10.1|once|023a211cb3138dbc438680b32560ad89f699977624c9f8dbb95a47d5b4c07dd3|reviewed-unsafe-present
+subtle|2.6.1|none|13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292|reviewed-unsafe-present
+zeroize|1.9.0|alloc,default,derive,zeroize_derive|e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e|reviewed-unsafe-present
+zeroize_derive|1.5.0|default|3c50655cbb0fe3fc43170059e702f1ce5e19b84cec58dc87b037a09935c2f328|reviewed-no-unsafe-source

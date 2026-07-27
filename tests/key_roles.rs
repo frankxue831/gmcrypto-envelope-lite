@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use gmcrypto_core::pem;
-use secure_envelope_lite::{
+use gmcrypto_envelope_lite::{
     AuthenticationContext, AuthenticationMode, ClientConfig, Error, HeaderProtocolAdapter, KeyKind,
     KeyMaterial, PeerKeySource, PrivateKey, PublicKey, SecureClient,
 };
@@ -322,7 +322,7 @@ fn unique_temp_dir_path(timestamp: SystemTime) -> PathBuf {
         .as_nanos();
     let sequence = NEXT_TEMP_DIR_ID.fetch_add(1, Ordering::Relaxed);
     std::env::temp_dir().join(format!(
-        "secure-envelope-lite-key-roles-{}-{timestamp}-{sequence}",
+        "gmcrypto-envelope-lite-key-roles-{}-{timestamp}-{sequence}",
         std::process::id()
     ))
 }

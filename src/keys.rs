@@ -7,9 +7,13 @@ use gmcrypto_core::{pem, pkcs8, spki, x509};
 
 use crate::{Error, KeyKind, Result};
 
+/// Identifies the public container from which a remote SM2 key was loaded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PeerKeySource {
+    /// X.509 SubjectPublicKeyInfo input.
     Spki,
+    /// X.509 certificate input.
     Certificate,
 }
 
@@ -22,6 +26,12 @@ pub struct PrivateKey {
 }
 
 impl PrivateKey {
+    /// Decrypts and validates an encrypted PKCS#8 private key in PEM form.
+    ///
+    /// # Errors
+    ///
+    /// Returns a redacted [`Error::KeyMaterial`] for invalid UTF-8, PEM, password,
+    /// PKCS#8, or SM2 material.
     pub fn from_encrypted_pem(private_pem: &[u8], password: &[u8]) -> Result<Self> {
         let private_text = std::str::from_utf8(private_pem).map_err(|_| private_key_error())?;
         let private_der =
@@ -29,11 +39,23 @@ impl PrivateKey {
         Self::from_encrypted_der(&private_der, password)
     }
 
+    /// Decrypts and validates an encrypted PKCS#8 private key in DER form.
+    ///
+    /// # Errors
+    ///
+    /// Returns a redacted [`Error::KeyMaterial`] for an invalid password, PKCS#8,
+    /// or SM2 private key.
     pub fn from_encrypted_der(private_der: &[u8], password: &[u8]) -> Result<Self> {
         let inner = pkcs8::decrypt(private_der, password).map_err(|_| private_key_error())?;
         Ok(Self { inner })
     }
 
+    /// Reads encrypted PKCS#8 PEM or DER private-key material from a file.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Io`] when the file cannot be read and redacted
+    /// [`Error::KeyMaterial`] when its contents cannot be loaded.
     pub fn from_encrypted_file(path: impl AsRef<Path>, password: &[u8]) -> Result<Self> {
         let path = path.as_ref();
         let private = fs::read(path).map_err(|source| Error::Io {
@@ -67,6 +89,11 @@ impl fmt::Debug for PublicKey {
 }
 
 impl PublicKey {
+    /// Loads a remote SM2 public key from SubjectPublicKeyInfo or certificate PEM.
+    ///
+    /// # Errors
+    ///
+    /// Returns a redacted [`Error::KeyMaterial`] when the container or key is invalid.
     pub fn from_pem(public_pem: &[u8]) -> Result<Self> {
         let public_text = std::str::from_utf8(public_pem).map_err(|_| public_key_error())?;
 
@@ -84,6 +111,11 @@ impl PublicKey {
         Err(public_key_error())
     }
 
+    /// Loads a remote SM2 public key from SubjectPublicKeyInfo or certificate DER.
+    ///
+    /// # Errors
+    ///
+    /// Returns a redacted [`Error::KeyMaterial`] when neither supported container is valid.
     pub fn from_der(public_der: &[u8]) -> Result<Self> {
         if let Some(inner) = spki::decode(public_der) {
             return Ok(Self {
@@ -101,6 +133,12 @@ impl PublicKey {
         Err(public_key_error())
     }
 
+    /// Reads a remote SM2 SubjectPublicKeyInfo or certificate from PEM or DER.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Io`] when the file cannot be read and redacted
+    /// [`Error::KeyMaterial`] when its contents cannot be loaded.
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
         let public = fs::read(path).map_err(|source| Error::Io {
@@ -116,6 +154,7 @@ impl PublicKey {
         }
     }
 
+    /// Returns the public container type that supplied this key.
     #[must_use]
     pub const fn source(&self) -> PeerKeySource {
         self.source
@@ -176,6 +215,12 @@ impl KeyMaterial {
     ///
     /// Use this only when the protocol explicitly assigns the same key to both local roles and
     /// the same key to both remote roles. Otherwise load each key separately and call [`Self::new`].
+    ///
+    /// # Security
+    ///
+    /// Select this only when the protocol explicitly assigns the same key to both
+    /// local roles and the same peer key to both remote roles. Convenience is not
+    /// evidence that role reuse is valid for a deployment.
     #[must_use]
     pub fn shared(local: PrivateKey, remote: PublicKey) -> Self {
         Self {
@@ -194,6 +239,12 @@ impl KeyMaterial {
     ///
     /// Use this only when the protocol defines shared roles. Role-specific protocols should use
     /// [`PrivateKey`] and [`PublicKey`] loaders followed by [`Self::new`].
+    ///
+    /// # Security
+    ///
+    /// Select this only when the protocol explicitly assigns the same key to both
+    /// local roles and the same peer key to both remote roles. Convenience is not
+    /// evidence that role reuse is valid for a deployment.
     pub fn shared_from_pem(private_pem: &[u8], password: &[u8], peer_pem: &[u8]) -> Result<Self> {
         let local = PrivateKey::from_encrypted_pem(private_pem, password)?;
         let remote = PublicKey::from_pem(peer_pem)?;
@@ -205,6 +256,12 @@ impl KeyMaterial {
     ///
     /// Use this only when the protocol defines shared roles. Role-specific protocols should use
     /// [`PrivateKey`] and [`PublicKey`] loaders followed by [`Self::new`].
+    ///
+    /// # Security
+    ///
+    /// Select this only when the protocol explicitly assigns the same key to both
+    /// local roles and the same peer key to both remote roles. Convenience is not
+    /// evidence that role reuse is valid for a deployment.
     pub fn shared_from_der(private_der: &[u8], password: &[u8], peer_der: &[u8]) -> Result<Self> {
         let local = PrivateKey::from_encrypted_der(private_der, password)?;
         let remote = PublicKey::from_der(peer_der)?;
@@ -216,6 +273,12 @@ impl KeyMaterial {
     ///
     /// Use this only when the protocol defines shared roles. Role-specific protocols should use
     /// [`PrivateKey::from_encrypted_file`] and [`PublicKey::from_file`] followed by [`Self::new`].
+    ///
+    /// # Security
+    ///
+    /// Select this only when the protocol explicitly assigns the same key to both
+    /// local roles and the same peer key to both remote roles. Convenience is not
+    /// evidence that role reuse is valid for a deployment.
     pub fn shared_from_files(
         private_path: impl AsRef<Path>,
         password: &[u8],

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use gmcrypto_core::sm2::Sm2PrivateKey;
 use gmcrypto_core::{pkcs8, spki};
-use secure_envelope_lite::{
+use gmcrypto_envelope_lite::{
     AuthenticationMode, CipherLocation, ClientConfig, HeaderProtocolAdapter, HeaderSchema,
     KeyMaterial, PrivateKey, PublicKey, RequestParts, ResponseParts, SecureClient,
 };

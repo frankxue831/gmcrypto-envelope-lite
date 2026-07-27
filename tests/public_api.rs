@@ -4,7 +4,7 @@ mod support;
 
 use std::sync::Arc;
 
-use secure_envelope_lite::{
+use gmcrypto_envelope_lite::{
     AuthenticationMode, ClientConfig, HeaderProtocolAdapter, HeaderSchema, KeyMaterial,
     RequestContext, RequestParts, ResponseParts, SecureClient,
 };

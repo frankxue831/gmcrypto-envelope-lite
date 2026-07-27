@@ -1,6 +1,14 @@
-# secure-envelope-lite
+# gmcrypto-envelope-lite
 
-`secure-envelope-lite` is a small, synchronous, HTTP-neutral Rust library for SM2/SM3 signatures and SM4 secure envelopes. It is **not independently audited**. Treat it as security-sensitive software, review it for your threat model, and complete your own cryptographic and integration assessment before deployment.
+`gmcrypto-envelope-lite` is a small, synchronous, HTTP-neutral Rust library for SM2/SM3 signatures and SM4 secure envelopes. It is **not independently audited**. Treat it as security-sensitive software, review it for your threat model, and complete your own cryptographic and integration assessment before deployment.
+
+The versioned [Security model](SECURITY_MODEL.md) is the authoritative list of claims, non-claims, trust boundaries, and required caller controls.
+
+## Position in the ecosystem
+
+`gmcrypto-envelope-lite` is the independently versioned public protocol layer above `gmcrypto-core`; it consumes core cryptography without exposing core types in its public API. Partner-specific wire mappings, identities, and exact-wire fixtures remain in private downstream adapters.
+
+Official membership, layering, versioning, admission rules, and compatibility gates are defined by the [gmcrypto Rust ecosystem charter](https://github.com/frankxue831/gm-crypto-rs/blob/main/docs/ECOSYSTEM.md). This crate's 0.1.0 RC suite is compatibility gate #1 for candidate `gmcrypto-core` releases.
 
 The crate turns application bytes into transport-neutral `RequestParts` and opens `ResponseParts` only after authentication. It does not send HTTP, select an async runtime, establish TLS, retry requests, manage endpoints, or impose an HTTP client.
 
@@ -44,7 +52,7 @@ All protocol mappings are explicit; there are no built-in remote wire names.
 ```no_run
 use std::sync::Arc;
 
-use secure_envelope_lite::{
+use gmcrypto_envelope_lite::{
     AuthenticationMode, CipherLocation, ClientConfig, HeaderProtocolAdapter, HeaderSchema,
     KeyMaterial, PrivateKey, PublicKey, SecureClient,
 };
@@ -96,8 +104,11 @@ fn client(key_password: &[u8]) -> Result<SecureClient, Box<dyn std::error::Error
         Arc::new(HeaderProtocolAdapter::new(schema)),
     ))
 }
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let key_password = std::env::var("SECURE_ENVELOPE_KEY_PASSWORD")?;
 # let _client = client(key_password.as_bytes())?;
+# Ok(())
+# }
 ```
 
 Where an existing envelope wire can expand its signature coverage, select `AuthenticationMode::context_bound(domain)` and implement a `ProtocolAdapter` that returns the matching context-bound authentication context. This does not modernize the underlying CBC construction. `HeaderProtocolAdapter` is the explicit legacy-compatibility convenience.
@@ -107,7 +118,7 @@ Where an existing envelope wire can expand its signature coverage, select `Authe
 Build each operation independently and copy the returned parts into the HTTP stack selected by the application:
 
 ```no_run
-# fn use_client(client: &secure_envelope_lite::SecureClient) -> secure_envelope_lite::Result<()> {
+# fn use_client(client: &gmcrypto_envelope_lite::SecureClient) -> gmcrypto_envelope_lite::Result<()> {
 let request = client
     .request("demo-operation")
     .header("X-Envelope-Trace", "demo-trace")?
@@ -126,8 +137,8 @@ let body = request.body();
 Capture an HTTP response as an ordered sequence of header pairs plus its body, then pass it to `open_response` or `open_json_response`:
 
 ```no_run
-# fn use_response(client: &secure_envelope_lite::SecureClient) -> secure_envelope_lite::Result<()> {
-use secure_envelope_lite::ResponseParts;
+# fn use_response(client: &gmcrypto_envelope_lite::SecureClient) -> gmcrypto_envelope_lite::Result<()> {
+use gmcrypto_envelope_lite::ResponseParts;
 
 # let received_headers = Vec::<(String, String)>::new();
 # let received_body = String::new();
@@ -151,6 +162,12 @@ The crate zeroizes SDK-owned session-key buffers, unverified plaintext buffers, 
 Real remote mappings, identifiers, fixtures, and the exact-wire compatibility suite must live outside the public checkout, such as in a separately access-controlled repository, configuration system, or adapter crate. Untracked files inside a public checkout are not a secrecy boundary. Before an internal deployment, the private compatibility suite must prove exact compatibility with the existing remote wire.
 
 Removing sensitive material from the current tree does not remove it from Git history. Publication must use a fresh, reviewed export or repository, unless a separately approved history rewrite is performed. Before publication, scan the complete export and package contents, then obtain security and legal approval.
+
+## Release status
+
+Version 0.1.0 is unreleased, and `Cargo.toml` keeps `publish = false`. Repository checks can produce an immutable `rc-built` artifact set containing the source export, Cargo package, manifest, and checksums for one exact commit.
+
+`rc-built` is evidence of repository gate completion, not approval for private exact-wire compatibility, independent security review, legal approval, production deployment, or publication. The blank [release checklist](RELEASE_CHECKLIST.md) defines those external states and is deliberately excluded from the Cargo package.
 
 ## Examples
 

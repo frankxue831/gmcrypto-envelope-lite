@@ -708,6 +708,42 @@ mod tests {
     }
 
     #[test]
+    fn truncated_cipher_and_malformed_signature_encoding_are_invalid_envelopes() {
+        let peers = peers(AuthenticationMode::LegacyPlaintext, 128);
+        let valid = seal(
+            &peers.sender_config,
+            &peers.sender_keys,
+            b"truncation and signature encoding",
+            &legacy_context(),
+        )
+        .expect("seal valid envelope");
+
+        let mut truncated_cipher = STANDARD.decode(&valid.cipher).expect("cipher Base64");
+        truncated_cipher.pop().expect("nonempty padded ciphertext");
+        let truncated = SecureEnvelope {
+            cipher: STANDARD.encode(truncated_cipher),
+            ..valid.clone()
+        };
+        assert_invalid_envelope(open(
+            &peers.receiver_config,
+            &peers.receiver_keys,
+            &truncated,
+            &legacy_context(),
+        ));
+
+        let malformed_signature = SecureEnvelope {
+            signature: STANDARD.encode([0x30, 0x01, 0x00]),
+            ..valid
+        };
+        assert_invalid_envelope(open(
+            &peers.receiver_config,
+            &peers.receiver_keys,
+            &malformed_signature,
+            &legacy_context(),
+        ));
+    }
+
+    #[test]
     fn signature_tampering_and_wrong_verification_key_are_indistinguishable() {
         let peers = peers(AuthenticationMode::LegacyPlaintext, 128);
         let valid = seal(

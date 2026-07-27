@@ -9,11 +9,17 @@ use crate::{
     HeaderValue, Result,
 };
 
-/// A transport-neutral encrypted and signed message.
+/// Protocol-neutral encoded secure-envelope values exposed only after sealing or before opening.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SecureEnvelope {
+    /// Canonical standard-padded Base64 ciphertext emitted by sealing; inbound public values are
+    /// untrusted until `SecureClient::open` validates them.
     pub cipher: String,
+    /// Canonical standard-padded Base64 SM2-wrapped session key emitted by sealing; inbound public
+    /// values are untrusted until `SecureClient::open` validates them.
     pub wrapped_session_key: String,
+    /// Canonical standard-padded Base64 SM2/SM3 signature emitted by sealing; inbound public
+    /// values are untrusted until `SecureClient::open` validates them.
     pub signature: String,
 }
 

@@ -2,7 +2,7 @@ mod support;
 
 use std::sync::{Arc, Mutex};
 
-use secure_envelope_lite::{
+use gmcrypto_envelope_lite::{
     AdapterError, AdapterErrorKind, AdapterResult, AuthenticationContext, AuthenticationMode,
     ClientIdentity, Error, ParsedResponse, ProtocolAdapter, ProtocolRequestContext, RequestContext,
     RequestMetadata, RequestParts, ResponseParts, SecureClient, SecureEnvelope,

@@ -1,0 +1,39 @@
+name: Build release candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rc-built:
+    name: Construct rc-built artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
+        with:
+          toolchain: stable
+          components: clippy,rustfmt
+      - name: Install pinned verification toolchains
+        run: |
+          rustup toolchain install 1.85.0 --profile minimal
+          rustup toolchain install nightly-2026-05-23 --profile minimal
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - name: Install pinned release-readiness tools
+        run: |
+          cargo install cargo-deny --version 0.20.2 --locked
+          cargo install cargo-public-api --version 0.52.0 --locked
+          cargo install cargo-fuzz --version 0.13.1 --locked
+      - name: Build release-candidate artifacts
+        run: ./ci/check-release-candidate.sh "$GITHUB_SHA" "$RUNNER_TEMP/gmcrypto-envelope-lite-rc"
+      - name: Upload release-candidate artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: gmcrypto-envelope-lite-0.1.0-rc-built-${{ github.sha }}
+          path: ${{ runner.temp }}/gmcrypto-envelope-lite-rc/
+          if-no-files-found: error
+          retention-days: 14

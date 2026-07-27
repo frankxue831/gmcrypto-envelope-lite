@@ -110,6 +110,7 @@ find_special_entries() (
         find . \
             \( -path './.git' \( -type f -o -type d \) -prune \) -o \
             \( -path './target' -type d -prune \) -o \
+            \( -path './fuzz/target' -type d -prune \) -o \
             \( ! -type d ! -type f -print \)
     else
         find . ! -type d ! -type f -print
@@ -133,6 +134,7 @@ run_file_exec() (
         find . \
             \( -path './.git' \( -type f -o -type d \) -prune \) -o \
             \( -path './target' -type d -prune \) -o \
+            \( -path './fuzz/target' -type d -prune \) -o \
             \( -type f -exec sh -c "$file_script" sh "$@" {} + \)
     else
         find . -type f -exec sh -c "$file_script" sh "$@" {} +
@@ -149,6 +151,7 @@ run_path_exec() (
         find . \
             \( -path './.git' \( -type f -o -type d \) -prune \) -o \
             \( -path './target' -type d -prune \) -o \
+            \( -path './fuzz/target' -type d -prune \) -o \
             \( \( -type d -o -type f \) -exec sh -c "$path_script" sh "$@" {} + \)
     else
         find . \( -type d -o -type f \) -exec sh -c "$path_script" sh "$@" {} +

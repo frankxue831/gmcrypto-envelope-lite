@@ -203,6 +203,14 @@ impl ClientConfigBuilder {
     }
 
     /// Sets the explicit 16-byte protocol IV.
+    ///
+    /// # Security
+    ///
+    /// The fixed IV exists only for legacy wire compatibility. Reusing a session key with this
+    /// fixed IV causes equal plaintext prefixes to produce equal ciphertext prefixes, revealing
+    /// plaintext-prefix equality. Sealing relies on a fresh random session key for every envelope
+    /// to prevent this cross-envelope leakage. CBC provides no ciphertext authentication, AEAD,
+    /// or nonce-misuse resistance.
     #[must_use]
     pub fn iv(mut self, value: [u8; 16]) -> Self {
         self.iv = Some(value);

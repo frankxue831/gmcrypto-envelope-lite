@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use secure_envelope_lite::{
+use gmcrypto_envelope_lite::{
     AuthenticationContext, AuthenticationMode, CipherLocation, HeaderSchema, HeaderSchemaBuilder,
     HeaderValue, ParsedResponse, RequestParts, ResponseParts, SecureEnvelope,
 };

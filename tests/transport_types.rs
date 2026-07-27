@@ -1,7 +1,7 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use secure_envelope_lite::{
+use gmcrypto_envelope_lite::{
     Error, HeaderName, HeaderValue, ProtocolRequestContext, RequestContext, RequestMetadata,
     RequestParts, ResponseParts, SecureEnvelope,
 };

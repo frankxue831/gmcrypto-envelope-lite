@@ -1,4 +1,6 @@
 #![forbid(unsafe_code)]
+#![deny(missing_docs)]
+#![cfg_attr(doctest, doc = include_str!("../README.md"))]
 //! HTTP-neutral SM2/SM3 and SM4 secure-envelope primitives.
 //!
 //! [`SecureClient`] seals application bytes into [`RequestParts`] and opens

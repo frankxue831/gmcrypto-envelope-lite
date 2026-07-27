@@ -1,6 +1,6 @@
 # Security Policy
 
-`secure-envelope-lite` is security-sensitive software and is **not independently audited**. The trust model, known limitations, and legacy-compatibility caveats (fixed-IV SM4-CBC, legacy plaintext signatures, timing considerations) are documented in [README.md](README.md). A report that restates a documented limitation is welcome as an issue or discussion, but it is not treated as a new vulnerability unless it demonstrates impact beyond what is documented.
+`gmcrypto-envelope-lite` is security-sensitive software and is **not independently audited**. The versioned [Security model](SECURITY_MODEL.md) defines its claims, non-claims, trust boundaries, and required caller controls. Legacy-compatibility caveats include fixed-IV SM4-CBC, plaintext-only legacy signatures, and timing considerations. A report that restates a documented limitation is welcome as an issue or discussion, but it is not treated as a new vulnerability unless it demonstrates impact beyond what is documented.
 
 ## Reporting a vulnerability
 

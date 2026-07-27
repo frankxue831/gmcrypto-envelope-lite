@@ -1,0 +1,26 @@
+name: Extended fuzzing
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: Bounded extended fuzzing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
+        with:
+          toolchain: nightly-2026-05-23
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - name: Install pinned fuzzing tool
+        run: cargo install cargo-fuzz --version 0.13.1 --locked
+      - name: Run bounded extended fuzzing
+        run: sh ci/fuzz-smoke.sh extended

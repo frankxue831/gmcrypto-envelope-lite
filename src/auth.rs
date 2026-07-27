@@ -9,10 +9,19 @@ const TRANSCRIPT_LENGTH_BYTES: usize = 3 * size_of::<u64>();
 
 /// Selects how plaintext is authenticated by the secure envelope.
 #[derive(Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum AuthenticationMode {
     /// Authenticates the exact plaintext for compatibility with deployed protocols.
+    ///
+    /// # Security
+    ///
+    /// This mode does not authenticate envelope metadata or transport headers. Use
+    /// authenticated TLS plus application replay defense and request/response correlation.
     LegacyPlaintext,
     /// Authenticates a versioned transcript containing a domain and protocol context.
+    ///
+    /// This expands signature coverage only. It does not turn the fixed-IV SM4-CBC
+    /// envelope into AEAD or provide replay protection.
     ContextBound {
         /// Non-empty separation between otherwise independent protocol transcripts.
         domain_separator: Vec<u8>,
@@ -70,6 +79,14 @@ impl fmt::Debug for AuthenticationContext {
 
 impl AuthenticationMode {
     /// Creates a context-bound mode with a non-empty domain separator.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Configuration`] when the domain separator is empty.
+    ///
+    /// # Security
+    ///
+    /// Domain separators must be stable and distinct for independent transcript meanings.
     pub fn context_bound(domain_separator: impl Into<Vec<u8>>) -> Result<Self> {
         let domain_separator = domain_separator.into();
         if domain_separator.is_empty() {
