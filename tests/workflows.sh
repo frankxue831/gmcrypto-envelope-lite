@@ -223,12 +223,17 @@ check_action_count() {
         fail "unexpected usage count for pinned action: $wanted_action"
 }
 
+normalize_actionlint_version() {
+    printf '%s\n' "${1#v}"
+}
+
 check_actionlint() {
     command -v actionlint >/dev/null 2>&1 || \
         fail "actionlint $ACTIONLINT_VERSION is required"
     installed_version=$(actionlint -version 2>/dev/null | sed -n '1p') || \
         fail "could not determine actionlint version"
-    test "$installed_version" = "$ACTIONLINT_VERSION" || \
+    normalized_version=$(normalize_actionlint_version "$installed_version")
+    test "$normalized_version" = "$ACTIONLINT_VERSION" || \
         fail "actionlint version mismatch: expected $ACTIONLINT_VERSION, found $installed_version"
     actionlint "$@" || fail "workflow YAML or GitHub Actions syntax is invalid"
 }
@@ -777,5 +782,12 @@ awk '
     }
 ' "$tmp/ci.original" >"$tmp/fixture/.github/workflows/ci.yml"
 expect_valid_mutation_accepted "unrelated write-valued environment" "$tmp/fixture"
+
+test "$(normalize_actionlint_version 1.7.12)" = "$ACTIONLINT_VERSION" || \
+    fail "actionlint version normalization must accept an unprefixed version"
+test "$(normalize_actionlint_version v1.7.12)" = "$ACTIONLINT_VERSION" || \
+    fail "actionlint version normalization must accept a v-prefixed version"
+test "$(normalize_actionlint_version v1.7.11)" != "$ACTIONLINT_VERSION" || \
+    fail "actionlint version normalization must reject a different version"
 
 echo "workflow contract tests passed"
