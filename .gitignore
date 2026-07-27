@@ -7,3 +7,7 @@
 /fuzz/artifacts/
 /fuzz/coverage/
 /fuzz/target/
+
+# macOS Finder metadata. Deliberately UNANCHORED — .DS_Store is created in any
+# directory the Finder visits, unlike the build/export paths above.
+.DS_Store
