@@ -69,9 +69,9 @@ case "$1" in
             --version)
                 test "${FAKE_CASE:-}" != cargo_unavailable || { echo simulated unavailable cargo-fuzz >&2; exit 72; }
                 if test "${FAKE_CASE:-}" = wrong_version; then
-                    echo cargo-fuzz 0.13.0
-                else
                     echo cargo-fuzz 0.13.1
+                else
+                    echo cargo-fuzz 0.13.2
                 fi
                 ;;
             run)
@@ -219,7 +219,7 @@ contains "$fixture/rustc_failure.err" "simulated rustc failure"
 contains "$fixture/rustc_failure.err" "pinned fuzz toolchain/rustc is unavailable"
 contains "$fixture/cargo_unavailable.err" "simulated unavailable cargo-fuzz"
 contains "$fixture/cargo_unavailable.err" "cargo-fuzz is unavailable"
-contains "$fixture/wrong_version.err" "cargo-fuzz version mismatch: expected cargo-fuzz 0.13.1, found cargo-fuzz 0.13.0"
+contains "$fixture/wrong_version.err" "cargo-fuzz version mismatch: expected cargo-fuzz 0.13.2, found cargo-fuzz 0.13.1"
 contains "$fixture/scenario_failure.err" "simulated scenario failure"
 contains "$fixture/scenario_failure.err" "fuzz scenario contract suite failed"
 test "$(cat "$fixture/scenario_failure.events")" = scenario || fail "scenario failure did not stop before fuzz targets"

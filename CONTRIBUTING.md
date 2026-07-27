@@ -32,7 +32,7 @@ The package helper requires a clean worktree. Its `mktemp` parent keeps the pack
 
 ## Release-readiness checks
 
-The release gates use Rust stable, Rust 1.85.0, and nightly-2026-05-23. Their auxiliary tools are pinned to cargo-deny 0.20.2, cargo-public-api 0.52.0, cargo-fuzz 0.13.1, and actionlint 1.7.12. Install each Cargo tool with its exact `--version` and `--locked`; install the workflow checker with `go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12`.
+The release gates use Rust stable, Rust 1.85.0, and nightly-2026-05-23. Their auxiliary tools are pinned to cargo-deny 0.20.2, cargo-public-api 0.52.0, cargo-fuzz 0.13.2, and actionlint 1.7.12. Install each Cargo tool with its exact `--version` and `--locked`; install the workflow checker with `go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12`.
 
 Exercise each fail-closed checker and then its repository gate:
 

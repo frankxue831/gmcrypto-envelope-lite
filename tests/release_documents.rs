@@ -11,10 +11,26 @@ const HOSTED_REPOSITORY_NAME_GATE: &str = "- [ ] Hosted GitHub repository is nam
 const CARGO_REPOSITORY_METADATA_GATE: &str = "- [ ] Cargo `repository` metadata resolves to the authorized hosted repository before publication.";
 const RELEASE_OWNER_AUTHORIZATION_GATE: &str = "- [ ] Authorized release owner confirmed that the reviewed commit and checksums are unchanged.";
 
+fn normalize_repository_text(contents: String) -> String {
+    contents.replace("\r\n", "\n")
+}
+
 fn repository_file(path: &str) -> String {
     let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(path);
-    fs::read_to_string(&full_path)
-        .unwrap_or_else(|error| panic!("unable to read {}: {error}", full_path.display()))
+    normalize_repository_text(
+        fs::read_to_string(&full_path)
+            .unwrap_or_else(|error| panic!("unable to read {}: {error}", full_path.display())),
+    )
+}
+
+#[test]
+fn repository_text_normalizes_windows_line_endings() {
+    let windows_text = "name = \"gmcrypto-core\"\r\nversion = \"1.9.0\"\r\n".to_owned();
+
+    assert_eq!(
+        normalize_repository_text(windows_text),
+        "name = \"gmcrypto-core\"\nversion = \"1.9.0\"\n"
+    );
 }
 
 fn assert_markers(document: &str, markers: &[&str]) {
