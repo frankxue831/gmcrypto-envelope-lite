@@ -361,6 +361,33 @@ mod tests {
         }
     }
 
+    fn literal_aad(
+        label: &[u8],
+        frame_header: &[u8],
+        domain_separator: &[u8],
+        protocol_context: &[u8],
+    ) -> Vec<u8> {
+        let mut aad = Vec::new();
+
+        let label_len = u64::try_from(label.len()).expect("label length fits u64");
+        aad.extend_from_slice(&label_len.to_be_bytes());
+        aad.extend_from_slice(label);
+
+        let header_len = u64::try_from(frame_header.len()).expect("header length fits u64");
+        aad.extend_from_slice(&header_len.to_be_bytes());
+        aad.extend_from_slice(frame_header);
+
+        let domain_len = u64::try_from(domain_separator.len()).expect("domain length fits u64");
+        aad.extend_from_slice(&domain_len.to_be_bytes());
+        aad.extend_from_slice(domain_separator);
+
+        let context_len = u64::try_from(protocol_context.len()).expect("context length fits u64");
+        aad.extend_from_slice(&context_len.to_be_bytes());
+        aad.extend_from_slice(protocol_context);
+
+        aad
+    }
+
     #[test]
     fn aead_frame_version_algorithm_and_reserved_ccm_ids_are_rejected() {
         let peers = aead_peers(AuthenticationMode::LegacyPlaintext, 128);
@@ -479,6 +506,106 @@ mod tests {
             &envelope,
             &context,
         ));
+    }
+
+    #[test]
+    fn aead_seal_gcm_tag_binds_literal_label_header_domain_and_context() {
+        const LABEL: &[u8] = b"gmcrypto-envelope-lite/aead-aad/v1";
+        const DOMAIN: &[u8] = b"example/request/v1";
+        const CONTEXT: &[u8] = b"operation=pay&id=17";
+        const PLAINTEXT: &[u8] = b"independently verified GCM AAD";
+
+        let mode = AuthenticationMode::context_bound(DOMAIN).expect("sender domain");
+        let peers = aead_peers(mode, 256);
+        let context = AuthenticationContext::context_bound(CONTEXT).expect("bound context");
+        let envelope = seal(
+            &peers.sender_config,
+            &peers.sender_keys,
+            PLAINTEXT,
+            &context,
+        )
+        .expect("seal context-bound envelope");
+        let untouched_envelope = envelope.clone();
+
+        let wrapped_session_key = STANDARD
+            .decode(&envelope.wrapped_session_key)
+            .expect("wrapped key Base64");
+        let receiver_private = raw_private_key(RECEIVER_DECRYPTION);
+        let unwrapped_session_key = Zeroizing::new(
+            sm2::decrypt(&receiver_private, &wrapped_session_key).expect("unwrap session key"),
+        );
+        let session_key: &[u8; 16] = unwrapped_session_key
+            .as_slice()
+            .try_into()
+            .expect("16-byte session key");
+
+        let frame = STANDARD.decode(&envelope.cipher).expect("cipher Base64");
+        assert_eq!(frame.len(), FRAME_OVERHEAD_BYTES + PLAINTEXT.len());
+        let frame_header: &[u8; FRAME_HEADER_BYTES] = frame[..FRAME_HEADER_BYTES]
+            .try_into()
+            .expect("14-byte frame header");
+        assert_eq!(frame_header[0], 0x01, "frame version");
+        assert_eq!(frame_header[1], 0x01, "SM4-GCM algorithm id");
+        let ciphertext_end = frame.len() - TAG_BYTES;
+        let ciphertext = &frame[FRAME_HEADER_BYTES..ciphertext_end];
+        let tag: &[u8; TAG_BYTES] = frame[ciphertext_end..].try_into().expect("16-byte GCM tag");
+        let nonce = &frame_header[2..];
+
+        let expected_aad = literal_aad(LABEL, frame_header, DOMAIN, CONTEXT);
+        assert_eq!(
+            gmcrypto_core::sm4::mode_gcm::decrypt(
+                session_key,
+                nonce,
+                &expected_aad,
+                ciphertext,
+                tag,
+            )
+            .expect("literal four-field AAD verifies the sealed GCM tag"),
+            PLAINTEXT
+        );
+
+        let mut different_header = *frame_header;
+        different_header[0] ^= 0x01;
+        for (field, different_aad) in [
+            (
+                "domain label",
+                literal_aad(
+                    b"gmcrypto-envelope-lite/aead-aad/v2",
+                    frame_header,
+                    DOMAIN,
+                    CONTEXT,
+                ),
+            ),
+            (
+                "frame header",
+                literal_aad(LABEL, &different_header, DOMAIN, CONTEXT),
+            ),
+            (
+                "domain separator",
+                literal_aad(LABEL, frame_header, b"example/response/v1", CONTEXT),
+            ),
+            (
+                "protocol context",
+                literal_aad(LABEL, frame_header, DOMAIN, b"operation=pay&id=18"),
+            ),
+        ] {
+            assert!(
+                gmcrypto_core::sm4::mode_gcm::decrypt(
+                    session_key,
+                    nonce,
+                    &different_aad,
+                    ciphertext,
+                    tag,
+                )
+                .is_none(),
+                "changing the {field} must fail primitive GCM tag verification"
+            );
+        }
+
+        assert_eq!(
+            envelope, untouched_envelope,
+            "AAD-only mutations must not alter the sealed envelope or its signature"
+        );
     }
 
     #[test]
