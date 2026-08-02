@@ -155,13 +155,17 @@ mod tests {
     use zeroize::Zeroizing;
 
     use crate::envelope_crypto::test_support::{
-        RECEIVER_DECRYPTION, aead_peers, assert_invalid_envelope, legacy_context, raw_private_key,
+        RECEIVER_DECRYPTION, RECEIVER_SIGNING, SENDER_DECRYPTION, SENDER_SIGNING, UNRELATED_KEY,
+        aead_peers, assert_invalid_envelope, key_material, legacy_context, raw_private_key,
+        wrapped_plaintext_for_receiver,
     };
     use crate::envelope_crypto::{open, seal};
+    use crate::message::SecureEnvelope;
     use crate::{AuthenticationContext, AuthenticationMode, Error};
 
     const FRAME_HEADER_BYTES: usize = 14;
     const FRAME_OVERHEAD_BYTES: usize = 30;
+    const TAG_BYTES: usize = 16;
 
     #[test]
     fn aead_round_trips_in_both_directions_with_distinct_roles() {
@@ -333,5 +337,316 @@ mod tests {
         )
         .expect_err("oversized outbound plaintext");
         assert!(matches!(error, Error::MessageTooLarge { limit: 8 }));
+    }
+
+    fn valid_envelope(peers: &crate::envelope_crypto::test_support::Peers) -> SecureEnvelope {
+        seal(
+            &peers.sender_config,
+            &peers.sender_keys,
+            b"aead negative-matrix payload",
+            &legacy_context(),
+        )
+        .expect("seal valid AEAD envelope")
+    }
+
+    fn with_mutated_frame(
+        valid: &SecureEnvelope,
+        mutate: impl FnOnce(&mut Vec<u8>),
+    ) -> SecureEnvelope {
+        let mut frame = STANDARD.decode(&valid.cipher).expect("cipher Base64");
+        mutate(&mut frame);
+        SecureEnvelope {
+            cipher: STANDARD.encode(frame),
+            ..valid.clone()
+        }
+    }
+
+    #[test]
+    fn aead_frame_version_algorithm_and_reserved_ccm_ids_are_rejected() {
+        let peers = aead_peers(AuthenticationMode::LegacyPlaintext, 128);
+        let valid = valid_envelope(&peers);
+
+        for mutated in [
+            with_mutated_frame(&valid, |frame| frame[0] ^= 0x01),
+            with_mutated_frame(&valid, |frame| frame[0] = 0x00),
+            with_mutated_frame(&valid, |frame| frame[1] = 0x02),
+            with_mutated_frame(&valid, |frame| frame[1] = 0x7f),
+        ] {
+            assert_invalid_envelope(open(
+                &peers.receiver_config,
+                &peers.receiver_keys,
+                &mutated,
+                &legacy_context(),
+            ));
+        }
+    }
+
+    #[test]
+    fn aead_short_and_truncated_frames_are_rejected() {
+        let peers = aead_peers(AuthenticationMode::LegacyPlaintext, 128);
+        let valid = valid_envelope(&peers);
+
+        let mut floor_minus_one = vec![0_u8; 29];
+        floor_minus_one[0] = 0x01;
+        floor_minus_one[1] = 0x01;
+        for mutated in [
+            SecureEnvelope {
+                cipher: STANDARD.encode(floor_minus_one),
+                ..valid.clone()
+            },
+            SecureEnvelope {
+                cipher: String::new(),
+                ..valid.clone()
+            },
+            with_mutated_frame(&valid, |frame| {
+                frame.pop();
+            }),
+            with_mutated_frame(&valid, |frame| frame.truncate(FRAME_HEADER_BYTES)),
+        ] {
+            assert_invalid_envelope(open(
+                &peers.receiver_config,
+                &peers.receiver_keys,
+                &mutated,
+                &legacy_context(),
+            ));
+        }
+    }
+
+    #[test]
+    fn aead_nonce_ciphertext_and_tag_tampering_are_indistinguishable() {
+        let peers = aead_peers(AuthenticationMode::LegacyPlaintext, 128);
+        let valid = valid_envelope(&peers);
+
+        for mutated in [
+            with_mutated_frame(&valid, |frame| frame[2] ^= 0x01),
+            // Cover first, middle, and last ciphertext bytes independently.
+            with_mutated_frame(&valid, |frame| frame[FRAME_HEADER_BYTES] ^= 0x01),
+            with_mutated_frame(&valid, |frame| {
+                let ciphertext_len = frame.len() - FRAME_OVERHEAD_BYTES;
+                let middle = FRAME_HEADER_BYTES + ciphertext_len / 2;
+                frame[middle] ^= 0x01;
+            }),
+            with_mutated_frame(&valid, |frame| {
+                let tag_start = frame.len() - TAG_BYTES;
+                let last_ciphertext = tag_start - 1;
+                frame[last_ciphertext] ^= 0x01;
+            }),
+            with_mutated_frame(&valid, |frame| {
+                let last = frame.len() - 1;
+                frame[last] ^= 0x01;
+            }),
+            with_mutated_frame(&valid, |frame| {
+                let tag_start = frame.len() - 16;
+                frame[tag_start..].fill(0);
+            }),
+        ] {
+            assert_invalid_envelope(open(
+                &peers.receiver_config,
+                &peers.receiver_keys,
+                &mutated,
+                &legacy_context(),
+            ));
+        }
+    }
+
+    #[test]
+    fn aead_domain_separator_and_context_are_covered_by_the_aad() {
+        let sender_mode =
+            AuthenticationMode::context_bound(b"example/request/v1").expect("sender domain");
+        let receiver_mode =
+            AuthenticationMode::context_bound(b"example/response/v1").expect("receiver domain");
+        let peers = aead_peers(sender_mode, 256);
+        let mismatched_receiver_config = crate::envelope_crypto::test_support::aead_config(
+            "receiver",
+            crate::envelope_crypto::test_support::RECEIVER_SIGNER_ID,
+            crate::envelope_crypto::test_support::SENDER_SIGNER_ID,
+            receiver_mode,
+            256,
+        );
+        let context =
+            AuthenticationContext::context_bound(b"operation=pay&id=17").expect("bound context");
+        let envelope = seal(
+            &peers.sender_config,
+            &peers.sender_keys,
+            b"domain-separated aead payload",
+            &context,
+        )
+        .expect("seal with sender domain");
+
+        assert_invalid_envelope(open(
+            &mismatched_receiver_config,
+            &peers.receiver_keys,
+            &envelope,
+            &context,
+        ));
+    }
+
+    #[test]
+    fn aead_oversized_encoded_and_decoded_ciphers_split_the_public_bounds() {
+        // Limit 17: max frame is 47 bytes, whose Base64 length is 64.
+        let peers = aead_peers(AuthenticationMode::LegacyPlaintext, 17);
+        let encoded_too_large = SecureEnvelope {
+            cipher: "!".repeat(65),
+            wrapped_session_key: "not Base64".to_owned(),
+            signature: "not Base64".to_owned(),
+        };
+        let encoded_error = open(
+            &peers.receiver_config,
+            &peers.receiver_keys,
+            &encoded_too_large,
+            &legacy_context(),
+        )
+        .expect_err("encoded cipher is over its public bound");
+        assert!(matches!(
+            encoded_error,
+            Error::MessageTooLarge { limit: 17 }
+        ));
+
+        // A 48-byte frame still encodes to 64 Base64 characters, but its
+        // 18-byte ciphertext body exceeds the 17-byte limit.
+        let mut decoded_frame = vec![0_u8; 48];
+        decoded_frame[0] = 0x01;
+        decoded_frame[1] = 0x01;
+        let decoded_too_large = SecureEnvelope {
+            cipher: STANDARD.encode(decoded_frame),
+            wrapped_session_key: "not Base64".to_owned(),
+            signature: "not Base64".to_owned(),
+        };
+        assert_invalid_envelope(open(
+            &peers.receiver_config,
+            &peers.receiver_keys,
+            &decoded_too_large,
+            &legacy_context(),
+        ));
+    }
+
+    #[test]
+    fn aead_open_never_returns_plaintext_sealed_beyond_the_local_limit() {
+        let sealing_peers = aead_peers(AuthenticationMode::LegacyPlaintext, 18);
+        let opening_peers = aead_peers(AuthenticationMode::LegacyPlaintext, 17);
+        let envelope = seal(
+            &sealing_peers.sender_config,
+            &sealing_peers.sender_keys,
+            &[b'z'; 18],
+            &legacy_context(),
+        )
+        .expect("seal within the sender's limit");
+
+        assert_invalid_envelope(open(
+            &opening_peers.receiver_config,
+            &opening_peers.receiver_keys,
+            &envelope,
+            &legacy_context(),
+        ));
+    }
+
+    #[test]
+    fn aead_wrapped_key_signature_and_wrong_key_failures_match_cbc_semantics() {
+        let peers = aead_peers(AuthenticationMode::LegacyPlaintext, 128);
+        let valid = valid_envelope(&peers);
+
+        let malformed_wrapped = SecureEnvelope {
+            wrapped_session_key: STANDARD.encode(b"not SM2 DER"),
+            ..valid.clone()
+        };
+        let wrong_length_wrapped = SecureEnvelope {
+            wrapped_session_key: wrapped_plaintext_for_receiver(b"not-16-bytes"),
+            ..valid.clone()
+        };
+        let mut tampered_signature_bytes =
+            STANDARD.decode(&valid.signature).expect("signature Base64");
+        let final_byte = tampered_signature_bytes.len() - 1;
+        tampered_signature_bytes[final_byte] ^= 1;
+        let tampered_signature = SecureEnvelope {
+            signature: STANDARD.encode(tampered_signature_bytes),
+            ..valid.clone()
+        };
+        let non_canonical = SecureEnvelope {
+            cipher: "AA".to_owned(),
+            ..valid.clone()
+        };
+        let invalid_base64_wrapped = SecureEnvelope {
+            wrapped_session_key: "!!!!".to_owned(),
+            ..valid.clone()
+        };
+        let invalid_base64_signature = SecureEnvelope {
+            signature: "!!!!".to_owned(),
+            ..valid.clone()
+        };
+        for mutated in [
+            malformed_wrapped,
+            wrong_length_wrapped,
+            tampered_signature,
+            non_canonical,
+            invalid_base64_wrapped,
+            invalid_base64_signature,
+        ] {
+            assert_invalid_envelope(open(
+                &peers.receiver_config,
+                &peers.receiver_keys,
+                &mutated,
+                &legacy_context(),
+            ));
+        }
+
+        let wrong_decryption = key_material(
+            RECEIVER_SIGNING,
+            UNRELATED_KEY,
+            SENDER_SIGNING,
+            SENDER_DECRYPTION,
+        );
+        assert_invalid_envelope(open(
+            &peers.receiver_config,
+            &wrong_decryption,
+            &valid,
+            &legacy_context(),
+        ));
+        let wrong_verification = key_material(
+            RECEIVER_SIGNING,
+            RECEIVER_DECRYPTION,
+            UNRELATED_KEY,
+            SENDER_DECRYPTION,
+        );
+        assert_invalid_envelope(open(
+            &peers.receiver_config,
+            &wrong_verification,
+            &valid,
+            &legacy_context(),
+        ));
+    }
+
+    #[test]
+    fn aead_and_cbc_clients_reject_each_other_s_envelopes() {
+        let cbc =
+            crate::envelope_crypto::test_support::peers(AuthenticationMode::LegacyPlaintext, 128);
+        let aead = aead_peers(AuthenticationMode::LegacyPlaintext, 128);
+
+        let cbc_envelope = seal(
+            &cbc.sender_config,
+            &cbc.sender_keys,
+            b"cbc payload",
+            &legacy_context(),
+        )
+        .expect("CBC seal");
+        assert_invalid_envelope(open(
+            &aead.receiver_config,
+            &aead.receiver_keys,
+            &cbc_envelope,
+            &legacy_context(),
+        ));
+
+        let aead_envelope = seal(
+            &aead.sender_config,
+            &aead.sender_keys,
+            b"aead payload",
+            &legacy_context(),
+        )
+        .expect("AEAD seal");
+        assert_invalid_envelope(open(
+            &cbc.receiver_config,
+            &cbc.receiver_keys,
+            &aead_envelope,
+            &legacy_context(),
+        ));
     }
 }
