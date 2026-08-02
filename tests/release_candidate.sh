@@ -472,6 +472,11 @@ cat >"$rc_tools/stable-bin/cargo" <<'EOF'
 set -eu
 test "$(command -v cargo)" = "$FAKE_STABLE_CARGO" || exit 81
 test "$(command -v rustc)" = "$FAKE_STABLE_RUSTC" || exit 82
+
+record_gate() {
+    printf '%s\n' "stable|$*" >>"$FAKE_RC_CARGO_LOG"
+}
+
 if test "$1" = fmt && test "${FAKE_RC_STATE_MUTATION:-}" != "" && \
     test ! -e "$FAKE_RC_STATE_MUTATION_MARKER"; then
     : >"$FAKE_RC_STATE_MUTATION_MARKER"
@@ -493,31 +498,42 @@ if test "${FAKE_REPLACE_RC_OUTPUT:-0}" = 1 && test ! -e "$FAKE_RC_REPLACED_MARKE
     printf '%s\n' 'replacement owned by another process' >"$FAKE_RC_OUTPUT/user-file"
     exit 88
 fi
-case "$1" in
-    deny)
-        if test "${2-}" = --version; then
-            printf '%s\n' 'cargo-deny 0.20.2'
-        else
-            test "${2-}" = check
-        fi
+case "$*" in
+    'deny --version')
+        printf '%s\n' 'cargo-deny 0.20.2'
         ;;
-    fmt)
+    'deny check')
+        ;;
+    'fmt --all -- --check')
+        record_gate "$@"
         test "${FAKE_RC_GATE_FAILURE:-0}" != 1 || exit 87
         ;;
-    clippy | test | doc) ;;
-    package)
-        test "${2-}" = --locked
-        if test "${3-}" = --list; then
-            printf '%s\n' \
-                LICENSE-APACHE LICENSE-MIT README.md SECURITY.md SECURITY_MODEL.md docs/api-stability.md \
-                docs/security/engineering-evidence.md \
-                docs/security/cryptographic-dependencies.md src/lib.rs \
-                examples/build_request.rs examples/open_response.rs
-        else
-            mkdir -p "$CARGO_TARGET_DIR/package"
-            cp "$FAKE_RC_CRATE" \
-                "$CARGO_TARGET_DIR/package/gmcrypto-envelope-lite-0.2.0.crate"
-        fi
+    'clippy --all-targets --locked -- -D warnings' | \
+        'clippy --all-targets --locked --features aead -- -D warnings' | \
+        'test --all-targets --locked' | \
+        'test --all-targets --locked --features aead' | \
+        'test --doc --locked' | \
+        'test --doc --locked --features aead')
+        record_gate "$@"
+        ;;
+    'doc --locked --no-deps' | 'doc --locked --no-deps --features aead')
+        test "${RUSTDOCFLAGS-}" = '-D missing-docs -D warnings' || {
+            echo "unexpected RUSTDOCFLAGS for Cargo doc: ${RUSTDOCFLAGS-}" >&2
+            exit 84
+        }
+        record_gate "$@"
+        ;;
+    'package --locked --list')
+        printf '%s\n' \
+            LICENSE-APACHE LICENSE-MIT README.md SECURITY.md SECURITY_MODEL.md docs/api-stability.md \
+            docs/security/engineering-evidence.md \
+            docs/security/cryptographic-dependencies.md src/lib.rs \
+            examples/build_request.rs examples/open_response.rs
+        ;;
+    'package --locked')
+        mkdir -p "$CARGO_TARGET_DIR/package"
+        cp "$FAKE_RC_CRATE" \
+            "$CARGO_TARGET_DIR/package/gmcrypto-envelope-lite-0.2.0.crate"
         ;;
     *) echo "unexpected stable Cargo arguments: $*" >&2; exit 83 ;;
 esac
@@ -527,7 +543,12 @@ cat >"$rc_tools/msrv-bin/cargo" <<'EOF'
 set -eu
 test "$(command -v cargo)" = "$FAKE_MSRV_CARGO" || exit 81
 test "$(command -v rustc)" = "$FAKE_MSRV_RUSTC" || exit 82
-test "$1" = test
+case "$*" in
+    'test --all-targets --locked' | 'test --all-targets --locked --features aead')
+        printf '%s\n' "msrv|$*" >>"$FAKE_RC_CARGO_LOG"
+        ;;
+    *) echo "unexpected MSRV Cargo arguments: $*" >&2; exit 83 ;;
+esac
 EOF
 cat >"$rc_tools/nightly-bin/cargo" <<'EOF'
 #!/bin/sh
@@ -582,17 +603,36 @@ run_fake_rc() {
         FAKE_MISSING_RC_RESERVATION="$fixture/missing-rc-reservation" \
         FAKE_RC_REPO="$rc_repo" \
         FAKE_RC_STATE_MUTATION_MARKER="$fixture/rc-state-mutation-marker" \
+        FAKE_RC_CARGO_LOG="$fixture/rc-cargo.log" \
         "$@" "$rc_repo/ci/check-release-candidate.sh" "$rc_commit" "$output" \
         >"$fixture/fake-rc.out" 2>"$fixture/fake-rc.err"
 }
 
 rc_output="$fixture/rc-output"
+: >"$fixture/rc-cargo.log"
 if ! run_fake_rc "$rc_output"; then
     sed -n '1,40p' "$fixture/fake-rc.err" >&2
     fail "release-candidate command rejected the complete fake RC fixture"
 fi
 test ! -e "$fixture/rc-ambient-cargo-called" || \
     fail "release-candidate command executed an ambient Cargo shim"
+cat >"$fixture/expected-rc-cargo.log" <<'EOF'
+stable|fmt --all -- --check
+stable|clippy --all-targets --locked -- -D warnings
+stable|clippy --all-targets --locked --features aead -- -D warnings
+stable|test --all-targets --locked
+stable|test --all-targets --locked --features aead
+stable|test --doc --locked
+stable|test --doc --locked --features aead
+stable|doc --locked --no-deps
+stable|doc --locked --no-deps --features aead
+msrv|test --all-targets --locked
+msrv|test --all-targets --locked --features aead
+EOF
+if ! cmp -s "$fixture/expected-rc-cargo.log" "$fixture/rc-cargo.log"; then
+    diff -u "$fixture/expected-rc-cargo.log" "$fixture/rc-cargo.log" >&2 || true
+    fail "release-candidate command did not execute the exact default/AEAD Cargo gate matrix"
+fi
 for artifact in \
     gmcrypto-envelope-lite-0.2.0-source.tar.gz \
     gmcrypto-envelope-lite-0.2.0.crate rc-manifest.json SHA256SUMS

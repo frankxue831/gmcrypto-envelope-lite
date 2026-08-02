@@ -269,11 +269,17 @@ grep -F "**Template version:** $RELEASE_CHECKLIST_VERSION" \
 
 (cd "$repo_root" && run_cargo stable "$stable_bin" "$stable_cargo" fmt --all -- --check)
 (cd "$repo_root" && run_cargo stable "$stable_bin" "$stable_cargo" clippy --all-targets --locked -- -D warnings)
+(cd "$repo_root" && run_cargo stable "$stable_bin" "$stable_cargo" clippy --all-targets --locked --features aead -- -D warnings)
 (cd "$repo_root" && run_cargo stable "$stable_bin" "$stable_cargo" test --all-targets --locked)
+(cd "$repo_root" && run_cargo stable "$stable_bin" "$stable_cargo" test --all-targets --locked --features aead)
 (cd "$repo_root" && run_cargo stable "$stable_bin" "$stable_cargo" test --doc --locked)
+(cd "$repo_root" && run_cargo stable "$stable_bin" "$stable_cargo" test --doc --locked --features aead)
 (cd "$repo_root" && export RUSTDOCFLAGS="-D missing-docs -D warnings" && \
     run_cargo stable "$stable_bin" "$stable_cargo" doc --locked --no-deps)
+(cd "$repo_root" && export RUSTDOCFLAGS="-D missing-docs -D warnings" && \
+    run_cargo stable "$stable_bin" "$stable_cargo" doc --locked --no-deps --features aead)
 (cd "$repo_root" && run_cargo 1.85.0 "$msrv_bin" "$msrv_cargo" test --all-targets --locked)
+(cd "$repo_root" && run_cargo 1.85.0 "$msrv_bin" "$msrv_cargo" test --all-targets --locked --features aead)
 (cd "$repo_root" && run_cargo stable "$stable_bin" "$stable_cargo" deny check)
 PATH="$stable_bin:$original_path" "$repo_root/ci/check-public-api.sh"
 PATH="$stable_bin:$original_path" "$repo_root/ci/check-crypto-inventory.sh"
