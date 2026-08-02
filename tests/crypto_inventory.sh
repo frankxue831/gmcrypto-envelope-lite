@@ -52,14 +52,14 @@ trap 'cleanup_fixture' EXIT HUP INT TERM
 
 make_fixture
 replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
-    'Backend registry checksum: `d93a065728aef78f84e82e2b3de88dc9ef8d504b35351657b0000ee9fe682d6d`' \
+    'Backend registry checksum: `4e81a6030cdbef95407ef7924aa2b60469d1263e094b667295cd3d787c2c3095`' \
     'Backend registry checksum: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
 expect_failure "altered documented backend checksum" "gmcrypto-core registry checksum differs from the inventory"
 cleanup_fixture
 
 make_fixture
 replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
-    'Reviewed Cargo.lock SHA-256: `c0bf1eb1197d63c32e09abb007436a9998a698072facfe1fd4815fe2cffacf3e`' \
+    'Reviewed Cargo.lock SHA-256: `284474aa170fcfa7a3cad31f3d3264d6fb7c6ceac49a99a213dc104e0ef23476`' \
     'Reviewed Cargo.lock SHA-256: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
 expect_failure "stale documented lock hash" "Cargo.lock differs from the reviewed inventory"
 cleanup_fixture
