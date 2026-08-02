@@ -5,9 +5,13 @@ use base64::engine::general_purpose::STANDARD;
 use gmcrypto_core::sm2;
 use zeroize::Zeroizing;
 
+#[cfg(feature = "aead")]
+use crate::client_config::EnvelopeMode;
 use crate::message::SecureEnvelope;
 use crate::{AuthenticationContext, ClientConfig, Error, KeyMaterial, Result};
 
+#[cfg(feature = "aead")]
+mod aead;
 mod cbc;
 
 const SESSION_KEY_BYTES: usize = 16;
@@ -26,6 +30,11 @@ pub(crate) fn seal(
         });
     }
 
+    #[cfg(feature = "aead")]
+    if let EnvelopeMode::Aead(algorithm) = config.envelope_mode() {
+        return aead::seal(config, keys, plaintext, context, algorithm);
+    }
+
     cbc::seal(config, keys, plaintext, context)
 }
 
@@ -35,6 +44,11 @@ pub(crate) fn open(
     envelope: &SecureEnvelope,
     context: &AuthenticationContext,
 ) -> Result<Vec<u8>> {
+    #[cfg(feature = "aead")]
+    if let EnvelopeMode::Aead(algorithm) = config.envelope_mode() {
+        return aead::open(config, keys, envelope, context, algorithm);
+    }
+
     cbc::open(config, keys, envelope, context)
 }
 
@@ -201,5 +215,60 @@ pub(crate) mod test_support {
         STANDARD.encode(
             sm2::encrypt(&receiver_public, bytes, &mut rng).expect("wrap test bytes for receiver"),
         )
+    }
+
+    #[cfg(feature = "aead")]
+    pub(crate) fn aead_peers(mode: AuthenticationMode, max_plaintext_bytes: usize) -> Peers {
+        Peers {
+            sender_config: aead_config(
+                "sender",
+                SENDER_SIGNER_ID,
+                RECEIVER_SIGNER_ID,
+                mode.clone(),
+                max_plaintext_bytes,
+            ),
+            sender_keys: key_material(
+                SENDER_SIGNING,
+                SENDER_DECRYPTION,
+                RECEIVER_SIGNING,
+                RECEIVER_DECRYPTION,
+            ),
+            receiver_config: aead_config(
+                "receiver",
+                RECEIVER_SIGNER_ID,
+                SENDER_SIGNER_ID,
+                mode,
+                max_plaintext_bytes,
+            ),
+            receiver_keys: key_material(
+                RECEIVER_SIGNING,
+                RECEIVER_DECRYPTION,
+                SENDER_SIGNING,
+                SENDER_DECRYPTION,
+            ),
+        }
+    }
+
+    #[cfg(feature = "aead")]
+    pub(crate) fn aead_config(
+        name: &str,
+        local_signer_id: &[u8],
+        expected_remote_signer_id: &[u8],
+        mode: AuthenticationMode,
+        max_plaintext_bytes: usize,
+    ) -> ClientConfig {
+        ClientConfig::builder()
+            .local_identity_id(format!("{name}-identity"))
+            .api_version("test-v1")
+            .local_certificate_id(format!("{name}-signing-certificate"))
+            .expected_remote_signing_certificate_id(format!("{name}-remote-signing-certificate"))
+            .remote_encryption_certificate_id(format!("{name}-remote-encryption-certificate"))
+            .local_signer_id(local_signer_id)
+            .expected_remote_signer_id(expected_remote_signer_id)
+            .authentication_mode(mode)
+            .envelope_mode(crate::EnvelopeMode::Aead(crate::AeadAlgorithm::Sm4Gcm))
+            .max_plaintext_bytes(max_plaintext_bytes)
+            .build()
+            .expect("valid AEAD test configuration")
     }
 }
