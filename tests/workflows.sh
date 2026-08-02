@@ -317,6 +317,8 @@ check_contract() (
     check_cache "$check_tmp/ci-test" "$check_tmp/ci-test-cache"
     require_run_step "$check_tmp/ci-test" 'cargo test --all-targets --locked' \
         "test job must run locked all-target tests"
+    require_run_step "$check_tmp/ci-test" 'cargo test --all-targets --locked --features aead' \
+        "test job must run locked all-target tests with the aead feature"
     check_named_step "$check_tmp/ci-test" 'Exercise open-source boundary scanner' \
         "$check_tmp/ci-test-boundary"
     require_exact_line "$check_tmp/ci-test-boundary" '        shell: bash' \
@@ -335,6 +337,8 @@ check_contract() (
     check_cache "$check_tmp/ci-msrv" "$check_tmp/ci-msrv-cache"
     require_run_step "$check_tmp/ci-msrv" 'cargo test --all-targets --locked' \
         "MSRV job must run locked all-target tests"
+    require_run_step "$check_tmp/ci-msrv" 'cargo test --all-targets --locked --features aead' \
+        "MSRV job must run locked all-target tests with the aead feature"
 
     check_job "$ci" quality "$check_tmp/ci-quality"
     require_literal "$check_tmp/ci-quality" 'name: Formatting, lint, docs, API, policy, package' "quality job name is not exact"
@@ -369,8 +373,11 @@ check_contract() (
     for command in \
         'cargo fmt --all -- --check' \
         'cargo clippy --all-targets --locked -- -D warnings' \
+        'cargo clippy --all-targets --locked --features aead -- -D warnings' \
         'cargo test --doc --locked' \
+        'cargo test --doc --locked --features aead' \
         'RUSTDOCFLAGS="-D missing-docs -D warnings" cargo doc --locked --no-deps' \
+        'RUSTDOCFLAGS="-D missing-docs -D warnings" cargo doc --locked --no-deps --features aead' \
         'cargo test --test release_documents --locked' \
         'cargo deny check'
     do
