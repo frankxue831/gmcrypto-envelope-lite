@@ -234,11 +234,80 @@ fn curated_aead_seeds_open_reject_and_hit_the_cipher_limit() {
         }
         assert!(open_with(seed).is_err(), "{name} must be rejected");
     }
+}
 
-    let (_, _, at_limit) = support::aead_encoded_values(b"vvb001|0:|0:|0:");
-    assert_eq!(at_limit.len(), support::AEAD_CIPHER_LIMIT);
-    let (_, _, over_limit) = support::aead_encoded_values(b"vvb002|0:|0:|0:");
-    assert_eq!(over_limit.len(), support::AEAD_CIPHER_LIMIT + 1);
+#[test]
+fn curated_aead_boundary_seeds_reach_literal_auxiliary_and_cipher_limits() {
+    assert_eq!(support::AEAD_FRAME_OVERHEAD_BYTES, 30);
+    assert_eq!(support::AEAD_CIPHER_LIMIT, 128);
+
+    let valid = support::aead_valid_envelope();
+    for (name, seed, field, expected_len) in [
+        (
+            "signature_limit_minus_one",
+            include_bytes!("../corpus/aead_envelope/signature_limit_minus_one").as_slice(),
+            0,
+            16_383,
+        ),
+        (
+            "signature_limit",
+            include_bytes!("../corpus/aead_envelope/signature_limit").as_slice(),
+            0,
+            16_384,
+        ),
+        (
+            "signature_limit_plus_one",
+            include_bytes!("../corpus/aead_envelope/signature_limit_plus_one").as_slice(),
+            0,
+            16_385,
+        ),
+        (
+            "wrapped_key_limit_minus_one",
+            include_bytes!("../corpus/aead_envelope/wrapped_key_limit_minus_one").as_slice(),
+            1,
+            16_383,
+        ),
+        (
+            "wrapped_key_limit",
+            include_bytes!("../corpus/aead_envelope/wrapped_key_limit").as_slice(),
+            1,
+            16_384,
+        ),
+        (
+            "wrapped_key_limit_plus_one",
+            include_bytes!("../corpus/aead_envelope/wrapped_key_limit_plus_one").as_slice(),
+            1,
+            16_385,
+        ),
+        (
+            "cipher_limit_minus_one",
+            include_bytes!("../corpus/aead_envelope/cipher_limit_minus_one").as_slice(),
+            2,
+            127,
+        ),
+        (
+            "cipher_limit",
+            include_bytes!("../corpus/aead_envelope/cipher_limit").as_slice(),
+            2,
+            128,
+        ),
+        (
+            "cipher_limit_plus_one",
+            include_bytes!("../corpus/aead_envelope/cipher_limit_plus_one").as_slice(),
+            2,
+            129,
+        ),
+    ] {
+        let values = support::aead_encoded_values(seed);
+        let actual = [&values.0, &values.1, &values.2];
+        assert_eq!(actual[field].len(), expected_len, "{name}");
+        for unchanged in 0..3 {
+            if unchanged != field {
+                let expected = [&valid.signature, &valid.wrapped_session_key, &valid.cipher];
+                assert_eq!(actual[unchanged], expected[unchanged], "{name}");
+            }
+        }
+    }
 }
 
 #[test]
