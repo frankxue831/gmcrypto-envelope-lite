@@ -75,6 +75,30 @@ impl ClientIdentity {
     }
 }
 
+/// Selects how the envelope payload is encrypted.
+///
+/// The mode is pinned by immutable client configuration and never
+/// inferred from incoming bytes: a client seals and opens only its
+/// configured mode, with no negotiation and no fallback.
+#[cfg(feature = "aead")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum EnvelopeMode {
+    /// The compatibility SM4-CBC payload with the configured fixed IV.
+    LegacyCbc,
+    /// An authenticated-encryption payload using the selected algorithm.
+    Aead(AeadAlgorithm),
+}
+
+/// Authenticated-encryption algorithms available to [`EnvelopeMode::Aead`].
+#[cfg(feature = "aead")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum AeadAlgorithm {
+    /// SM4-GCM with a 12-byte random nonce and a full 16-byte tag.
+    Sm4Gcm,
+}
+
 /// Immutable client-lifetime configuration for secure-envelope operations.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClientConfig {
@@ -83,6 +107,8 @@ pub struct ClientConfig {
     expected_remote_signer_id: Vec<u8>,
     authentication_mode: AuthenticationMode,
     iv: [u8; 16],
+    #[cfg(feature = "aead")]
+    envelope_mode: EnvelopeMode,
     max_plaintext_bytes: usize,
 }
 
@@ -118,9 +144,18 @@ impl ClientConfig {
     }
 
     /// Returns the explicit protocol IV.
+    /// Under an AEAD envelope mode (feature `aead`) the stored value is all zeroes and is not used
+    /// by sealing or opening.
     #[must_use]
     pub fn iv(&self) -> &[u8; 16] {
         &self.iv
+    }
+
+    /// Returns the configured envelope mode.
+    #[cfg(feature = "aead")]
+    #[must_use]
+    pub fn envelope_mode(&self) -> EnvelopeMode {
+        self.envelope_mode
     }
 
     /// Returns the maximum accepted plaintext size in bytes.
@@ -142,6 +177,8 @@ pub struct ClientConfigBuilder {
     expected_remote_signer_id: Option<Vec<u8>>,
     authentication_mode: Option<AuthenticationMode>,
     iv: Option<[u8; 16]>,
+    #[cfg(feature = "aead")]
+    envelope_mode: Option<EnvelopeMode>,
     max_plaintext_bytes: Option<usize>,
 }
 
@@ -211,9 +248,18 @@ impl ClientConfigBuilder {
     /// plaintext-prefix equality. Sealing relies on a fresh random session key for every envelope
     /// to prevent this cross-envelope leakage. CBC provides no ciphertext authentication, AEAD,
     /// or nonce-misuse resistance.
+    /// Setting an IV together with an AEAD envelope mode is a configuration error.
     #[must_use]
     pub fn iv(mut self, value: [u8; 16]) -> Self {
         self.iv = Some(value);
+        self
+    }
+
+    /// Sets the envelope mode; the default is the compatibility SM4-CBC mode.
+    #[cfg(feature = "aead")]
+    #[must_use]
+    pub fn envelope_mode(mut self, value: EnvelopeMode) -> Self {
+        self.envelope_mode = Some(value);
         self
     }
 
@@ -245,6 +291,20 @@ impl ClientConfigBuilder {
         let local_signer_id = required_signer_id(self.local_signer_id, "local_signer_id")?;
         let expected_remote_signer_id =
             required_signer_id(self.expected_remote_signer_id, "expected_remote_signer_id")?;
+        #[cfg(feature = "aead")]
+        let envelope_mode = self.envelope_mode.unwrap_or(EnvelopeMode::LegacyCbc);
+        #[cfg(feature = "aead")]
+        let iv = match envelope_mode {
+            EnvelopeMode::LegacyCbc => self.iv.ok_or(Error::Configuration { field: "iv" })?,
+            EnvelopeMode::Aead(_) => {
+                if self.iv.is_some() {
+                    return Err(Error::Configuration { field: "iv" });
+                }
+                // Inert filler: the AEAD payload path never reads the IV.
+                [0_u8; 16]
+            }
+        };
+        #[cfg(not(feature = "aead"))]
         let iv = self.iv.ok_or(Error::Configuration { field: "iv" })?;
         let authentication_mode = self.authentication_mode.ok_or(Error::Configuration {
             field: "authentication_mode",
@@ -265,6 +325,8 @@ impl ClientConfigBuilder {
             expected_remote_signer_id,
             authentication_mode,
             iv,
+            #[cfg(feature = "aead")]
+            envelope_mode,
             max_plaintext_bytes,
         })
     }
@@ -287,4 +349,53 @@ fn required_signer_id(value: Option<Vec<u8>>, field: &'static str) -> Result<Vec
         return Err(Error::Configuration { field });
     }
     Ok(value)
+}
+
+#[cfg(all(test, feature = "aead"))]
+mod tests {
+    use super::{AeadAlgorithm, ClientConfig, ClientConfigBuilder, EnvelopeMode};
+    use crate::{AuthenticationMode, Error};
+
+    fn base_builder() -> ClientConfigBuilder {
+        ClientConfig::builder()
+            .local_identity_id("identity")
+            .api_version("version")
+            .local_certificate_id("certificate")
+            .expected_remote_signing_certificate_id("certificate")
+            .remote_encryption_certificate_id("certificate")
+            .local_signer_id(b"signer".to_vec())
+            .expected_remote_signer_id(b"signer".to_vec())
+            .authentication_mode(AuthenticationMode::LegacyPlaintext)
+    }
+
+    #[test]
+    fn envelope_mode_defaults_to_legacy_cbc_and_still_requires_an_iv() {
+        let config = base_builder()
+            .iv(*b"0123456789abcdef")
+            .build()
+            .expect("legacy configuration");
+        assert_eq!(config.envelope_mode(), EnvelopeMode::LegacyCbc);
+
+        let missing_iv = base_builder().build().expect_err("legacy mode without IV");
+        assert!(matches!(missing_iv, Error::Configuration { field: "iv" }));
+    }
+
+    #[test]
+    fn aead_mode_builds_without_an_iv_and_rejects_a_configured_iv() {
+        let config = base_builder()
+            .envelope_mode(EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm))
+            .build()
+            .expect("AEAD configuration");
+        assert_eq!(
+            config.envelope_mode(),
+            EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm)
+        );
+
+        let with_iv = base_builder()
+            .envelope_mode(EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm))
+            .iv(*b"0123456789abcdef")
+            .build()
+            .expect_err("AEAD mode with a configured IV");
+        assert!(matches!(with_iv, Error::Configuration { field: "iv" }));
+    }
 }
