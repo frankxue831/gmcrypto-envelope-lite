@@ -414,10 +414,10 @@ printf '%s\n' license >"$rc_repo/LICENSE-APACHE"
 printf '%s\n' license >"$rc_repo/LICENSE-MIT"
 printf '%s\n' readme >"$rc_repo/README.md"
 printf '%s\n' security >"$rc_repo/SECURITY.md"
-printf '%s\n' '# Security Model' '**Model version:** 1' >"$rc_repo/SECURITY_MODEL.md"
+printf '%s\n' '# Security Model' '**Model version:** 2' >"$rc_repo/SECURITY_MODEL.md"
 printf '%s\n' '# Release Checklist' '**Template version:** 1' >"$rc_repo/RELEASE_CHECKLIST.md"
 printf '%s\n' '# API Stability' '**Policy version:** 1' >"$rc_repo/docs/api-stability.md"
-printf '%s\n' '# Engineering Evidence' '**Evidence version:** 1' \
+printf '%s\n' '# Engineering Evidence' '**Evidence version:** 2' \
     >"$rc_repo/docs/security/engineering-evidence.md"
 printf '%s\n' '# Cryptographic Dependencies' '**Inventory version:** 2' \
     >"$rc_repo/docs/security/cryptographic-dependencies.md"

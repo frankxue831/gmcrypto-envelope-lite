@@ -386,7 +386,7 @@ fn security_model_is_versioned_and_states_claims_and_non_claims() {
     assert_markers(
         &model,
         &[
-            "**Model version:** 1",
+            "**Model version:** 2",
             "## Protected assets and attacker-controlled inputs",
             "## Trust boundaries",
             "## Security claims",
@@ -395,7 +395,7 @@ fn security_model_is_versioned_and_states_claims_and_non_claims() {
             "LegacyPlaintext",
             "ContextBound",
             "not independently audited",
-            "does not provide an AEAD envelope profile",
+            "Without the opt-in `aead` feature it provides no AEAD envelope profile",
         ],
     );
 
@@ -432,7 +432,7 @@ fn engineering_evidence_is_versioned_and_disclaims_audit_status() {
     assert_markers(
         &evidence,
         &[
-            "**Evidence version:** 1",
+            "**Evidence version:** 2",
             "not an independent audit, certification, warranty, or proof",
             "tests/standard_vectors.rs",
             "directional_roles_drive_two_party_cryptography",

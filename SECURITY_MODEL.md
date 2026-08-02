@@ -1,8 +1,8 @@
 # Security Model
 
-**Model version:** 1
+**Model version:** 2
 
-This document defines the security claims and non-claims for `gmcrypto-envelope-lite` 0.1.x. It is not an independent audit, certification, warranty, or proof of cryptographic security.
+This document defines the security claims and non-claims for `gmcrypto-envelope-lite` 0.2.x. It is not an independent audit, certification, warranty, or proof of cryptographic security.
 
 ## Protected assets and attacker-controlled inputs
 
@@ -29,9 +29,13 @@ Inbound header names, header values, bodies, Base64 text, wrapped keys, signatur
 
 Every seal operation generates a fresh 16-byte session key from the operating-system random source, encrypts plaintext with the configured compatibility SM4-CBC construction, wraps the session key for the configured remote encryption key, and signs the authentication input with the local signing key and signer ID.
 
+Under the opt-in `aead` feature and a configured AEAD envelope mode, sealing instead encrypts with SM4-GCM under a fresh random 12-byte nonce, authenticating a length-prefixed AAD of a fixed domain label, the cipher frame header, the configured domain separator, and the protocol context. Session-key freshness — not the nonce — is the primary defense against `(key, nonce)` reuse; the random nonce is defense in depth. The SM2 signature over the authentication input remains mandatory, because an AEAD tag under a session key encrypted to a public key proves nothing about the sender.
+
 ### Inbound envelopes
 
 Plaintext is returned only after encoded-size checks, strict Base64 decoding, session-key unwrapping with the local decryption key, block decryption and padding validation, decoded-size validation, authentication-input construction, and signature verification with the configured remote verification key and expected signer ID.
+
+Under an AEAD envelope mode, plaintext is returned only after encoded-size checks, strict Base64 decoding, frame version and algorithm-identifier pinning against the configuration, ciphertext-length validation, session-key unwrapping, AAD reconstruction, GCM tag verification (which precedes any plaintext materialization), and signature verification. The envelope mode is never inferred from inbound bytes: an AEAD client rejects CBC envelopes outright and a CBC client rejects AEAD frames.
 
 Malformed Base64, key-wrap, unwrapped-key length, padding, ciphertext, and signature failures after strict decoding are reported as `Error::InvalidEnvelope`. This public error unification does not claim identical timing.
 
@@ -63,7 +67,7 @@ SDK-owned session-key buffers, unverified plaintext buffers, and temporary JSON 
 ## Explicit non-claims
 
 - The library is not independently audited and provides no formal verification, FIPS validation, GM certification, or security warranty.
-- It does not provide an AEAD envelope profile. The fixed-IV SM4-CBC construction exists only for legacy wire compatibility and can reveal plaintext-prefix equality under key reuse.
+- Without the opt-in `aead` feature it provides no AEAD envelope profile; the fixed-IV SM4-CBC construction exists only for legacy wire compatibility and can reveal plaintext-prefix equality under key reuse. The `aead` feature's SM4-GCM mode does not add replay protection or freshness, and it compiles `gmcrypto-simd` and `cpufeatures`, which contain unsafe code reviewed only as recorded in the cryptographic dependency inventory.
 - It does not claim universal constant-time behavior or resistance to timing, cache, power, electromagnetic, fault-injection, or other side channels.
 - Public error unification does not guarantee identical failure timing.
 - It does not guarantee zeroization of allocations, padding, copies, or intermediate values owned by cryptographic, serialization, allocator, operating-system, or other third-party code.
