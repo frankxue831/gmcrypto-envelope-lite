@@ -459,7 +459,7 @@ fn cryptographic_dependency_inventory_records_the_reviewed_root_lockfile() {
     assert_markers(
         &inventory,
         &[
-            "**Inventory version:** 1",
+            "**Inventory version:** 2",
             "`gmcrypto-core` | `1.11.0` | `x509`",
             "`8ec9607b3f27388ccbe86acedf0e102dcaf02ab523d2d96589e32775ae5725b7`",
             "unsafe_code = \"forbid\"",

@@ -1,6 +1,6 @@
 # Cryptographic Dependency Inventory
 
-**Inventory version:** 1
+**Inventory version:** 2
 
 - Reviewed Cargo.lock SHA-256: `8ec9607b3f27388ccbe86acedf0e102dcaf02ab523d2d96589e32775ae5725b7`
 - Root crate policy: `#![forbid(unsafe_code)]`
@@ -24,6 +24,18 @@ The reviewed boundary is the exact package, version, enabled-feature, registry-c
 | `zeroize_derive` | `1.5.0` | `default` | `3c50655cbb0fe3fc43170059e702f1ce5e19b84cec58dc87b037a09935c2f328` | reviewed: no unsafe source | Macro implementation used by zeroization derives |
 
 The direct manifest request is `gmcrypto-core` | `1.11.0` | `x509`; its enabled feature set also includes `default`.
+
+## AEAD feature boundary
+
+The rows below are compiled only under the opt-in `aead` feature (`aead = ["gmcrypto-core/sm4-aead"]`). They are locked in `Cargo.lock` unconditionally because Cargo locks the maximal feature graph, but a default build compiles none of this code. The `gmcrypto-core` row here overrides the default-boundary row's enabled-feature set; its registry checksum and scan status are identical. `ci/check-crypto-inventory.sh` validates this table as an overlay on the default boundary using `cargo tree --locked --features aead`.
+
+| Dependency | Resolved version | Enabled features | Registry checksum | Source-scan status | SDK responsibility |
+| --- | --- | --- | --- | --- | --- |
+| `gmcrypto-core` | `1.11.0` | `default`, `sm4-aead`, `x509` | `4e81a6030cdbef95407ef7924aa2b60469d1263e094b667295cd3d787c2c3095` | reviewed: no unsafe source | Adds SM4-GCM sealing and opening for the AEAD envelope mode |
+| `gmcrypto-simd` | `1.11.0` | `none` | `31a7928890d12bd4064aba2664435fc62b2a6a487f8c2611d26856f31d5ceca4` | reviewed: unsafe source present | GHASH carryless-multiply and SIMD SM4 S-box backends quarantined out of `gmcrypto-core` |
+| `cpufeatures` | `0.2.17` | `default` | `59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280` | reviewed: unsafe source present | Runtime CPU-capability detection for SIMD backend selection |
+
+The `sm4-aead` feature is atomic in `gmcrypto-core` and is defined as `["dep:gmcrypto-simd"]`: enabling GCM alone or CCM alone is not possible, and the SIMD crate is the AVX2/NEON and GHASH `clmul`/`pmull` quarantine that lets `gmcrypto-core` keep `unsafe_code = "forbid"` while `gmcrypto-simd` itself sets `unsafe_code = "warn"`. `cpufeatures` depends on the already-locked `libc`, which remains outside this cryptographic boundary as platform plumbing. No constant-time claim is made for the SIMD backends. Each source-scan status remains limited to the exact registry checksum in its row and is not an audit or a safety proof.
 
 For the `spin` 0.10.0 to 0.10.1 lock refresh, the reviewed manifest retains the `once` feature and otherwise changes only the package version. The runtime-source delta is limited to `src/once.rs`: `Once::force_into_inner` now uses `ManuallyDrop` with `assume_init_read` to prevent a double drop, and the crate adds a regression test for moving out a boxed value. The unsafe-source classification therefore remains `reviewed: unsafe source present`. This records the dependency review; it does not claim that this SDK directly exercised the affected consuming APIs.
 

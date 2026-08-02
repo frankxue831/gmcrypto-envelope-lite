@@ -419,7 +419,7 @@ printf '%s\n' '# Release Checklist' '**Template version:** 1' >"$rc_repo/RELEASE
 printf '%s\n' '# API Stability' '**Policy version:** 1' >"$rc_repo/docs/api-stability.md"
 printf '%s\n' '# Engineering Evidence' '**Evidence version:** 1' \
     >"$rc_repo/docs/security/engineering-evidence.md"
-printf '%s\n' '# Cryptographic Dependencies' '**Inventory version:** 1' \
+printf '%s\n' '# Cryptographic Dependencies' '**Inventory version:** 2' \
     >"$rc_repo/docs/security/cryptographic-dependencies.md"
 printf '%s\n' 'pub fn fixture() {}' >"$rc_repo/src/lib.rs"
 printf '%s\n' 'fn main() {}' >"$rc_repo/examples/build_request.rs"

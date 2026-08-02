@@ -128,5 +128,68 @@ make_fixture
 printf '%s\n' '| malformed | row | with | invalid | fields | extra |' >>"$fixture/docs/security/cryptographic-dependencies.md"
 expect_contains "$fixture/docs/security/cryptographic-dependencies.md" '| malformed | row |'
 expect_failure "malformed human-readable dependency row" "human-readable cryptographic dependency table is invalid"
+cleanup_fixture
+
+make_fixture
+rm "$fixture/ci/crypto-inventory-aead.snapshot"
+test ! -e "$fixture/ci/crypto-inventory-aead.snapshot" || \
+    fail "AEAD snapshot removal mutation did not apply"
+expect_failure "missing AEAD snapshot" "AEAD cryptographic dependency snapshot is missing"
+cleanup_fixture
+
+make_fixture
+replace_text "$fixture/ci/crypto-inventory-aead.snapshot" \
+    'cpufeatures|0.2.17|default|59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280|' \
+    'cpufeatures|0.2.17|default|aaaa|'
+expect_failure "invalid AEAD snapshot checksum" "AEAD cryptographic dependency snapshot has an invalid row"
+cleanup_fixture
+
+make_fixture
+replace_text "$fixture/ci/crypto-inventory-aead.snapshot" \
+    'gmcrypto-simd|1.11.0|none|' \
+    'unexpected-simd|1.11.0|none|'
+expect_failure "unexpected AEAD package name" "AEAD cryptographic dependency snapshot has missing or unexpected packages"
+cleanup_fixture
+
+make_fixture
+replace_text "$fixture/ci/crypto-inventory-aead.snapshot" \
+    'gmcrypto-core|1.11.0|default,sm4-aead,x509|' \
+    'gmcrypto-core|1.11.0|default,x509|'
+expect_failure "AEAD snapshot feature drift" "human-readable cryptographic dependency table differs from the reviewed snapshot"
+cleanup_fixture
+
+make_fixture
+replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
+    '| `gmcrypto-simd` | `1.11.0` | `none` |' \
+    '| `gmcrypto-simd` | `1.11.0` | `default` |'
+expect_failure "doc-only AEAD feature drift" "human-readable cryptographic dependency table differs from the reviewed snapshot"
+cleanup_fixture
+
+make_fixture
+replace_text "$fixture/ci/crypto-inventory-aead.snapshot" \
+    'cpufeatures|0.2.17|default|' \
+    'cpufeatures|0.2.17|none|'
+replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
+    '| `cpufeatures` | `0.2.17` | `default` |' \
+    '| `cpufeatures` | `0.2.17` | `none` |'
+expect_failure "resolved AEAD feature drift" "resolved AEAD cryptographic dependency package, feature, or checksum differs from the reviewed snapshot"
+cleanup_fixture
+
+make_fixture
+replace_text "$fixture/ci/crypto-inventory-aead.snapshot" \
+    '59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280' \
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
+    '59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280' \
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+expect_failure "resolved AEAD checksum drift" "resolved AEAD cryptographic dependency package, feature, or checksum differs from the reviewed snapshot"
+cleanup_fixture
+
+make_fixture
+replace_text "$fixture/Cargo.toml" \
+    'aead = \["gmcrypto-core\/sm4-aead"\]' \
+    'aead = []'
+expect_failure "altered aead feature definition" "aead feature definition changed"
+cleanup_fixture
 
 echo "cryptographic inventory negative tests passed"
