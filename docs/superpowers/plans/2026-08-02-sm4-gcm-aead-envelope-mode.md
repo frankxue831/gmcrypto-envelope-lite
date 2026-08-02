@@ -8,7 +8,7 @@
 
 **Tech Stack:** Rust 2024 (MSRV 1.85), gmcrypto-core 1.11 (`x509` + newly `sm4-aead`), POSIX sh check scripts, cargo-fuzz.
 
-**Branch:** work happens on the existing local branch `aead-envelope-mode` (already contains the spec commit). Nothing is pushed until the final task.
+**Branch:** work happens on the existing local tracking branch `aead-envelope-mode` in this isolated worktree, based on `origin/aead-envelope-mode`. `main` contains a squash-equivalent merge of the design and plan. Nothing is pushed until the final task, when the branch is pushed to `origin aead-envelope-mode`.
 
 ## Global Constraints
 
@@ -16,7 +16,7 @@
 - Default-features public API must stay byte-identical to `api/gmcrypto-envelope-lite-0.1.0.txt` content through every task (all new API is `#[cfg(feature = "aead")]`).
 - Frame constants: header 14 bytes (`0x01` version, `0x01` = SM4-GCM, 12-byte nonce), tag 16 bytes, overhead 30 bytes; algorithm id `0x02` is reserved for CCM and rejected.
 - AAD label: `gmcrypto-envelope-lite/aead-aad/v1`; all AAD/transcript fields are u64 big-endian length-prefixed.
-- Every inbound failure is `Error::InvalidEnvelope`; outbound failures use existing variants only. No new `Error` variant.
+- Encoded `cipher` input above the public bound intentionally returns `Error::MessageTooLarge`; every other inbound AEAD parse, cryptographic, decoded-bound, context, and downgrade failure returns `Error::InvalidEnvelope`. Outbound failures use existing variants only. No new `Error` variant.
 - `SecureClient::seal`/`open` signatures unchanged; the mode comes only from `ClientConfig`; no inference from bytes.
 - Crate lints: `#![forbid(unsafe_code)]`, `#![deny(missing_docs)]`; CI runs clippy `-D warnings` and rustdoc `-D missing-docs -D warnings`. Docs on always-present items must not intra-doc-link feature-gated items (plain text only), or the default-features doc build breaks.
 - `cargo fmt --all` before every commit. Push only to `origin`; never flip the repo public; never `cargo publish`; never change `ci/check-open-source-boundary.sh`.
@@ -33,6 +33,7 @@ The feature is declared but stays off by default. Cargo locks the maximal featur
 - Modify: `Cargo.lock` (via cargo, not by hand)
 - Modify: `docs/security/cryptographic-dependencies.md` (one line: lock hash)
 - Modify: `tests/crypto_inventory.sh` (one literal: lock hash)
+- Modify: `tests/release_documents.rs` (reviewed lock-hash assertion)
 
 **Interfaces:**
 - Consumes: nothing.
@@ -76,12 +77,12 @@ Call the output `<NEWHASH>`. In `docs/security/cryptographic-dependencies.md` re
 - Reviewed Cargo.lock SHA-256: `284474aa170fcfa7a3cad31f3d3264d6fb7c6ceac49a99a213dc104e0ef23476`
 ```
 
-with `<NEWHASH>`. In `tests/crypto_inventory.sh`, the same old literal `284474aa170fcfa7a3cad31f3d3264d6fb7c6ceac49a99a213dc104e0ef23476` appears once (the "stale documented lock hash" mutation); replace it with `<NEWHASH>`.
+with `<NEWHASH>`. In `tests/crypto_inventory.sh`, the same old literal `284474aa170fcfa7a3cad31f3d3264d6fb7c6ceac49a99a213dc104e0ef23476` appears once (the "stale documented lock hash" mutation); replace it with `<NEWHASH>`. In `tests/release_documents.rs`, replace the same literal in the reviewed inventory marker with `<NEWHASH>`.
 
 - [ ] **Step 5: Verify green**
 
 ```bash
-./ci/check-crypto-inventory.sh && sh tests/crypto_inventory.sh && cargo test --all-targets --locked 2>&1 | tail -3
+./ci/check-crypto-inventory.sh && sh tests/crypto_inventory.sh && cargo test --test release_documents --locked 2>&1 | tail -3 && cargo test --all-targets --locked 2>&1 | tail -3
 ```
 
 Expected: `cryptographic dependency inventory check passed`, the self-test's final `ok`-style success, and the full test suite passing.
@@ -89,7 +90,7 @@ Expected: `cryptographic dependency inventory check passed`, the self-test's fin
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Cargo.toml Cargo.lock docs/security/cryptographic-dependencies.md tests/crypto_inventory.sh
+git add Cargo.toml Cargo.lock docs/security/cryptographic-dependencies.md tests/crypto_inventory.sh tests/release_documents.rs
 git commit -m "feat: declare the off-by-default aead feature
 
 Locks gmcrypto-simd 1.11.0 and cpufeatures 0.2.17 (Cargo locks the
@@ -1317,7 +1318,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 ### Task 6: AEAD negative and downgrade test matrix
 
-All inbound failures must be `Error::InvalidEnvelope`, indistinguishable; the two mode-crossing directions must both reject.
+An encoded `cipher` input above the public bound returns `Error::MessageTooLarge`; all other inbound AEAD parse, cryptographic, decoded-bound, context, and downgrade failures must be indistinguishable as `Error::InvalidEnvelope`. The two mode-crossing directions must both reject.
 
 **Files:**
 - Modify: `src/envelope_crypto/aead.rs` (tests module only)
@@ -1411,7 +1412,18 @@ Append inside the `tests` module of `aead.rs`:
 
         for mutated in [
             with_mutated_frame(&valid, |frame| frame[2] ^= 0x01),
+            // Cover first, middle, and last ciphertext bytes independently.
             with_mutated_frame(&valid, |frame| frame[FRAME_HEADER_BYTES] ^= 0x01),
+            with_mutated_frame(&valid, |frame| {
+                let ciphertext_len = frame.len() - FRAME_OVERHEAD_BYTES;
+                let middle = FRAME_HEADER_BYTES + ciphertext_len / 2;
+                frame[middle] ^= 0x01;
+            }),
+            with_mutated_frame(&valid, |frame| {
+                let tag_start = frame.len() - TAG_BYTES;
+                let last_ciphertext = tag_start - 1;
+                frame[last_ciphertext] ^= 0x01;
+            }),
             with_mutated_frame(&valid, |frame| {
                 let last = frame.len() - 1;
                 frame[last] ^= 0x01;
@@ -2246,7 +2258,7 @@ The AEAD boundary is the resolution delta under `--features aead`: `gmcrypto-sim
 
 **Files:**
 - Create: `ci/crypto-inventory-aead.snapshot`
-- Modify: `ci/check-crypto-inventory.sh`, `docs/security/cryptographic-dependencies.md`, `tests/crypto_inventory.sh`, `tests/release_documents.rs`, `ci/tool-versions.sh`
+- Modify: `ci/check-crypto-inventory.sh`, `docs/security/cryptographic-dependencies.md`, `tests/crypto_inventory.sh`, `tests/release_documents.rs`, `tests/release_candidate.sh`, `ci/tool-versions.sh`
 
 **Interfaces:**
 - Consumes: Task 1's lockfile.
@@ -2414,6 +2426,7 @@ cleanup_fixture
 
 - `ci/tool-versions.sh`: `CRYPTO_INVENTORY_VERSION=1` → `2`.
 - `tests/release_documents.rs`: the assertion containing `"**Inventory version:** 1"` → `"**Inventory version:** 2"`.
+- `tests/release_candidate.sh`: update its hardcoded cryptographic-inventory fixture document from `**Inventory version:** 1` to `**Inventory version:** 2`, because it copies `ci/tool-versions.sh` into the fixture.
 
 - [ ] **Step 6: Verify**
 
@@ -2421,6 +2434,7 @@ cleanup_fixture
 ./ci/check-crypto-inventory.sh
 sh tests/crypto_inventory.sh
 cargo test --test release_documents --locked 2>&1 | tail -3
+sh tests/release_candidate.sh
 ```
 
 Expected: all pass.
@@ -2428,7 +2442,7 @@ Expected: all pass.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add ci/crypto-inventory-aead.snapshot ci/check-crypto-inventory.sh docs/security/cryptographic-dependencies.md tests/crypto_inventory.sh tests/release_documents.rs ci/tool-versions.sh
+git add ci/crypto-inventory-aead.snapshot ci/check-crypto-inventory.sh docs/security/cryptographic-dependencies.md tests/crypto_inventory.sh tests/release_documents.rs tests/release_candidate.sh ci/tool-versions.sh
 git commit -m "docs: two-tier cryptographic inventory for the aead feature
 
 The AEAD boundary is validated as an overlay: gmcrypto-simd and
@@ -2492,7 +2506,7 @@ Expected before commit: `tests/workflows.sh` passes (it runs actionlint; it must
 ### Task 12: Documentation — README mode table, security model v2, evidence map v2
 
 **Files:**
-- Modify: `README.md`, `SECURITY_MODEL.md`, `docs/security/engineering-evidence.md`, `tests/release_documents.rs`, `ci/tool-versions.sh`
+- Modify: `README.md`, `SECURITY_MODEL.md`, `docs/security/engineering-evidence.md`, `tests/release_documents.rs`, `tests/release_candidate.sh`, `ci/tool-versions.sh`
 
 **Interfaces:**
 - Consumes: test names from Tasks 5–8.
@@ -2579,7 +2593,7 @@ d. In **Explicit non-claims**, replace `- It does not provide an AEAD envelope p
 
 - [ ] **Step 4: Version counters and assertions**
 
-`ci/tool-versions.sh`: `SECURITY_MODEL_VERSION=2`, `ENGINEERING_EVIDENCE_VERSION=2`. `tests/release_documents.rs`: `"**Model version:** 1"` → `"**Model version:** 2"` and `"**Evidence version:** 1"` → `"**Evidence version:** 2"`.
+`ci/tool-versions.sh`: `SECURITY_MODEL_VERSION=2`, `ENGINEERING_EVIDENCE_VERSION=2`. `tests/release_documents.rs`: `"**Model version:** 1"` → `"**Model version:** 2"`, replace its old `does not provide an AEAD envelope profile` marker with `Without the opt-in \`aead\` feature it provides no AEAD envelope profile`, and `"**Evidence version:** 1"` → `"**Evidence version:** 2"`. `tests/release_candidate.sh`: update its hardcoded security-model and engineering-evidence fixture documents from version 1 to version 2, because it copies `ci/tool-versions.sh` into the fixture.
 
 - [ ] **Step 5: Verify**
 
@@ -2587,6 +2601,7 @@ d. In **Explicit non-claims**, replace `- It does not provide an AEAD envelope p
 cargo test --doc --locked 2>&1 | tail -3
 cargo test --doc --locked --features aead 2>&1 | tail -3
 cargo test --test release_documents --locked 2>&1 | tail -3
+sh tests/release_candidate.sh
 RUSTDOCFLAGS="-D missing-docs -D warnings" cargo doc --locked --no-deps
 RUSTDOCFLAGS="-D missing-docs -D warnings" cargo doc --locked --no-deps --features aead
 ```
@@ -2596,7 +2611,7 @@ Expected: README doctests compile in BOTH states (the cfg-block trick compiles t
 - [ ] **Step 6: Commit**
 
 ```bash
-git add README.md SECURITY_MODEL.md docs/security/engineering-evidence.md tests/release_documents.rs ci/tool-versions.sh
+git add README.md SECURITY_MODEL.md docs/security/engineering-evidence.md tests/release_documents.rs tests/release_candidate.sh ci/tool-versions.sh
 git commit -m "docs: envelope-mode table, security model v2, evidence map v2
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
@@ -2609,7 +2624,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 Everything version-coupled moves in one commit so the battery is green at its end. Known 0.1.0 identity sites: `Cargo.toml`, `ci/check-public-api.sh` (path + message), `ci/check-cargo-package.sh:60`, `ci/check-release-candidate.sh:88`, `.github/workflows/release-candidate.yml:36`, `tests/workflows.sh:469`, `tests/public_api.sh` (numerous), `api/gmcrypto-envelope-lite-0.1.0.txt`, `RELEASE_CHECKLIST.md:1`, `README.md` (§Release status), `CHANGELOG.md` (new entry), `docs/api-stability.md` (§Baseline).
 
 **Files:**
-- Modify: all of the above, plus `Cargo.lock` (own version line), `docs/security/cryptographic-dependencies.md` + `tests/crypto_inventory.sh` (lock hash refresh again), `ci/tool-versions.sh` (`API_SNAPSHOT_VERSION=2`), `tests/release_documents.rs` (`**Policy version:** 2`)
+- Modify: all of the above, plus `Cargo.lock` (own version line), `docs/security/cryptographic-dependencies.md` + `tests/crypto_inventory.sh` + `tests/release_documents.rs` (lock hash refresh again), `ci/tool-versions.sh` (`API_SNAPSHOT_VERSION=2`), and `tests/release_candidate.sh` (fixture counter and version identity)
 - Create: `api/gmcrypto-envelope-lite-0.2.0.txt` (rename), `api/gmcrypto-envelope-lite-0.2.0-aead.txt` (generated)
 
 - [ ] **Step 1: Bump the version**
@@ -2618,7 +2633,7 @@ Everything version-coupled moves in one commit so the battery is green at its en
 
 - [ ] **Step 2: Refresh the lock hash (again)**
 
-`shasum -a 256 Cargo.lock` → `<NEWHASH2>`; update the `Reviewed Cargo.lock SHA-256` line in `docs/security/cryptographic-dependencies.md` and the same literal in `tests/crypto_inventory.sh` (Task 1 planted the previous value in both).
+`shasum -a 256 Cargo.lock` → `<NEWHASH2>`; update the `Reviewed Cargo.lock SHA-256` line in `docs/security/cryptographic-dependencies.md`, the same literal in `tests/crypto_inventory.sh`, and the reviewed inventory marker in `tests/release_documents.rs` (Task 1 planted the previous value in all three).
 
 - [ ] **Step 3: Snapshots**
 
@@ -2703,7 +2718,7 @@ cp "$repo_root/api/gmcrypto-envelope-lite-0.2.0-aead.txt" "$fixture/generated-ae
 - `ci/check-release-candidate.sh`: `package_version=0.1.0` → `0.2.0`.
 - `.github/workflows/release-candidate.yml`: artifact `name: gmcrypto-envelope-lite-0.1.0-rc-built-${{ github.sha }}` → `-0.2.0-rc-built-`.
 - `tests/workflows.sh` line 469: same string change.
-- `tests/release_candidate.sh`: replace every `0.1.0` fixture literal with `0.2.0` (`sed -i '' 's/0\.1\.0/0.2.0/g' tests/release_candidate.sh` on macOS, then review the diff — every hit is a fixture identity).
+- `tests/release_candidate.sh`: replace every `0.1.0` fixture literal with `0.2.0` (`sed -i '' 's/0\.1\.0/0.2.0/g' tests/release_candidate.sh` on macOS, then review the diff — every hit is a fixture identity), and update its hardcoded model, policy, evidence, and inventory fixture document versions from 1 to 2 because it copies `ci/tool-versions.sh` into the fixture.
 - `RELEASE_CHECKLIST.md` title: `# 0.1.0 Release Candidate External Gate Checklist` → `# 0.2.0 ...`.
 - `README.md` §Release status: `Version 0.1.0 is a release candidate: ...` → `Version 0.2.0 is unreleased and in development; the 0.1.0 release-candidate artifact set remains recorded at promotion state rc-built. Publishing is enabled in the manifest, and publication happens only after the external gates in the release checklist pass.` Leave the charter sentence about the 0.1.0 RC suite (line 11) unchanged — it is a historical charter reference.
 - `docs/api-stability.md` §Baseline: replace the paragraph with:
@@ -2712,8 +2727,8 @@ cp "$repo_root/api/gmcrypto-envelope-lite-0.2.0-aead.txt" "$fixture/generated-ae
 The canonical 0.2.0 snapshots are `api/gmcrypto-envelope-lite-0.2.0.txt` (default features) and `api/gmcrypto-envelope-lite-0.2.0-aead.txt` (`--features aead`), generated by the pinned `cargo-public-api` version in `ci/tool-versions.sh` with simplified level two and color disabled. This level omits blanket and auto-trait noise while retaining derived public trait implementations, which remain part of the tracked semver surface. The default-features snapshot is content-identical to the retired 0.1.0 snapshot: every 0.2.0 addition is gated behind `aead`.
 ```
 
-and `**Policy version:** 1` → `**Policy version:** 2`.
-- `tests/release_documents.rs`: `"**Policy version:** 1"` → `"**Policy version:** 2"`.
+and `**Policy version:** 1` → `**Policy version:** 2`. Update `Within 0.1.x` to `Within 0.2.x`. In **Extensible public enums**, replace the non-exhaustive list and its matching assertion sentence with one that includes the feature-gated `EnvelopeMode` and `AeadAlgorithm`; this text must remain plain text rather than an intra-doc link from an always-present item.
+- `tests/release_documents.rs`: `"**Policy version:** 1"` → `"**Policy version:** 2"`; add a `Within 0.2.x` marker; replace the API-stability assertion marker `api/gmcrypto-envelope-lite-0.1.0.txt` with both `api/gmcrypto-envelope-lite-0.2.0.txt` and `api/gmcrypto-envelope-lite-0.2.0-aead.txt`; and update the non-exhaustive-enum marker to include `EnvelopeMode` and `AeadAlgorithm`.
 - `ci/tool-versions.sh`: `API_SNAPSHOT_VERSION=2`.
 - `CHANGELOG.md`: under `## [Unreleased]` add:
 
@@ -2744,7 +2759,12 @@ Expected: all pass.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add -A
+git add Cargo.toml Cargo.lock CHANGELOG.md README.md RELEASE_CHECKLIST.md \
+  ci/check-cargo-package.sh ci/check-public-api.sh ci/check-release-candidate.sh ci/tool-versions.sh \
+  docs/api-stability.md docs/security/cryptographic-dependencies.md \
+  tests/crypto_inventory.sh tests/public_api.sh tests/release_candidate.sh tests/release_documents.rs tests/workflows.sh \
+  .github/workflows/release-candidate.yml \
+  api/gmcrypto-envelope-lite-0.2.0.txt api/gmcrypto-envelope-lite-0.2.0-aead.txt
 git commit -m "release: move version identity to 0.2.0 with dual API snapshots
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
