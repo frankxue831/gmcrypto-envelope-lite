@@ -27,7 +27,7 @@ jobs:
         run: |
           cargo install cargo-deny --version 0.20.2 --locked
           cargo install cargo-public-api --version 0.52.0 --locked
-          cargo install cargo-fuzz --version 0.13.2 --locked
+          cargo install cargo-fuzz --version 0.13.1 --locked
       - name: Build release-candidate artifacts
         run: ./ci/check-release-candidate.sh "$GITHUB_SHA" "$RUNNER_TEMP/gmcrypto-envelope-lite-rc"
       - name: Upload release-candidate artifacts

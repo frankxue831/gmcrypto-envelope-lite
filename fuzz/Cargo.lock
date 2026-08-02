@@ -94,9 +94,9 @@ dependencies = [
 
 [[package]]
 name = "gmcrypto-core"
-version = "1.9.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d93a065728aef78f84e82e2b3de88dc9ef8d504b35351657b0000ee9fe682d6d"
+checksum = "4e81a6030cdbef95407ef7924aa2b60469d1263e094b667295cd3d787c2c3095"
 dependencies = [
  "crypto-bigint",
  "rand_core",

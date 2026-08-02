@@ -5,7 +5,7 @@ cpubits|0.1.1|default|15b85f9c39137c3a891689859392b1bd49812121d0d61c9caf00d46ed5
 crypto-bigint|0.7.5|subtle,zeroize|1a52aa3fcda4e6302a9f48734f234d35d4721b96f8fe07d073f07ce9df4f0271|reviewed-unsafe-present
 ctutils|0.4.2|default,subtle|7d5515a3834141de9eafb9717ad39eea8247b5674e6066c404e8c4b365d2a29e|reviewed-no-unsafe-source
 getrandom|0.4.3|default,sys_rng|300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099|reviewed-unsafe-present
-gmcrypto-core|1.9.0|default,x509|d93a065728aef78f84e82e2b3de88dc9ef8d504b35351657b0000ee9fe682d6d|reviewed-no-unsafe-source
+gmcrypto-core|1.11.0|default,x509|4e81a6030cdbef95407ef7924aa2b60469d1263e094b667295cd3d787c2c3095|reviewed-no-unsafe-source
 rand_core|0.10.1|default|63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69|reviewed-no-unsafe-source
 spin|0.10.1|once|023a211cb3138dbc438680b32560ad89f699977624c9f8dbb95a47d5b4c07dd3|reviewed-unsafe-present
 subtle|2.6.1|none|13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292|reviewed-unsafe-present

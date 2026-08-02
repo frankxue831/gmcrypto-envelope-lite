@@ -223,17 +223,12 @@ check_action_count() {
         fail "unexpected usage count for pinned action: $wanted_action"
 }
 
-normalize_actionlint_version() {
-    printf '%s\n' "${1#v}"
-}
-
 check_actionlint() {
     command -v actionlint >/dev/null 2>&1 || \
         fail "actionlint $ACTIONLINT_VERSION is required"
     installed_version=$(actionlint -version 2>/dev/null | sed -n '1p') || \
         fail "could not determine actionlint version"
-    normalized_version=$(normalize_actionlint_version "$installed_version")
-    test "$normalized_version" = "$ACTIONLINT_VERSION" || \
+    test "$installed_version" = "$ACTIONLINT_VERSION" || \
         fail "actionlint version mismatch: expected $ACTIONLINT_VERSION, found $installed_version"
     actionlint "$@" || fail "workflow YAML or GitHub Actions syntax is invalid"
 }
@@ -367,7 +362,7 @@ check_contract() (
         "          echo \"\$(go env GOPATH)/bin\" >> \"\$GITHUB_PATH\"" \
         "quality job must put the pinned actionlint binary on PATH"
     require_named_run "$check_tmp/ci-quality" 'Verify workflow checker version' \
-        "test \"\$(actionlint -version | sed -n '1p')\" = v1.7.12" \
+        "test \"\$(actionlint -version | sed -n '1p')\" = 1.7.12" \
         "$check_tmp/ci-quality-actionlint-version"
     for command in \
         'cargo fmt --all -- --check' \
@@ -414,7 +409,7 @@ check_contract() (
     check_toolchain "$check_tmp/ci-fuzz" nightly-2026-05-23 "$check_tmp/ci-fuzz-toolchain"
     check_cache "$check_tmp/ci-fuzz" "$check_tmp/ci-fuzz-cache"
     require_named_run "$check_tmp/ci-fuzz" 'Install pinned fuzzing tool' \
-        'cargo install cargo-fuzz --version 0.13.2 --locked' "$check_tmp/ci-fuzz-install"
+        'cargo install cargo-fuzz --version 0.13.1 --locked' "$check_tmp/ci-fuzz-install"
     require_named_run "$check_tmp/ci-fuzz" 'Exercise fuzz runner' \
         'sh tests/fuzz_smoke.sh' "$check_tmp/ci-fuzz-test"
     require_named_run "$check_tmp/ci-fuzz" 'Run bounded fuzz smoke' \
@@ -430,7 +425,7 @@ check_contract() (
     check_toolchain "$check_tmp/fuzz-job" nightly-2026-05-23 "$check_tmp/fuzz-toolchain"
     check_cache "$check_tmp/fuzz-job" "$check_tmp/fuzz-cache"
     require_named_run "$check_tmp/fuzz-job" 'Install pinned fuzzing tool' \
-        'cargo install cargo-fuzz --version 0.13.2 --locked' "$check_tmp/fuzz-install"
+        'cargo install cargo-fuzz --version 0.13.1 --locked' "$check_tmp/fuzz-install"
     require_named_run "$check_tmp/fuzz-job" 'Run bounded extended fuzzing' \
         'sh ci/fuzz-smoke.sh extended' "$check_tmp/fuzz-run"
 
@@ -457,7 +452,7 @@ check_contract() (
     for install in \
         '          cargo install cargo-deny --version 0.20.2 --locked' \
         '          cargo install cargo-public-api --version 0.52.0 --locked' \
-        '          cargo install cargo-fuzz --version 0.13.2 --locked'
+        '          cargo install cargo-fuzz --version 0.13.1 --locked'
     do
         require_exact_line "$check_tmp/release-tools" "$install" \
             "release-candidate job is missing a pinned tool install"
@@ -782,12 +777,5 @@ awk '
     }
 ' "$tmp/ci.original" >"$tmp/fixture/.github/workflows/ci.yml"
 expect_valid_mutation_accepted "unrelated write-valued environment" "$tmp/fixture"
-
-test "$(normalize_actionlint_version 1.7.12)" = "$ACTIONLINT_VERSION" || \
-    fail "actionlint version normalization must accept an unprefixed version"
-test "$(normalize_actionlint_version v1.7.12)" = "$ACTIONLINT_VERSION" || \
-    fail "actionlint version normalization must accept a v-prefixed version"
-test "$(normalize_actionlint_version v1.7.11)" != "$ACTIONLINT_VERSION" || \
-    fail "actionlint version normalization must reject a different version"
 
 echo "workflow contract tests passed"

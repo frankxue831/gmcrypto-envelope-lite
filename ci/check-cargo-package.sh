@@ -175,7 +175,7 @@ case "$package_scan_status" in
 esac
 
 for required in \
-    LICENSE README.md SECURITY.md SECURITY_MODEL.md docs/api-stability.md \
+    LICENSE-APACHE LICENSE-MIT README.md SECURITY.md SECURITY_MODEL.md docs/api-stability.md \
     docs/security/engineering-evidence.md docs/security/cryptographic-dependencies.md \
     src/lib.rs examples/build_request.rs examples/open_response.rs
 do

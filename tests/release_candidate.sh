@@ -85,7 +85,7 @@ cat >"$fixture/fake-bin/cargo" <<'EOF'
 #!/bin/sh
 if test "$#" -eq 3 && test "$1" = package && test "$2" = --locked && test "$3" = --list; then
     printf '%s\n' \
-        LICENSE README.md SECURITY.md SECURITY_MODEL.md docs/api-stability.md \
+        LICENSE-APACHE LICENSE-MIT README.md SECURITY.md SECURITY_MODEL.md docs/api-stability.md \
         docs/security/engineering-evidence.md \
         docs/security/cryptographic-dependencies.md src/lib.rs \
         examples/build_request.rs examples/open_response.rs
@@ -317,7 +317,7 @@ test "$1" = package && test "$2" = --locked || {
 case "${3-}" in
     --list)
         printf '%s\n' \
-            LICENSE README.md SECURITY.md SECURITY_MODEL.md docs/api-stability.md \
+            LICENSE-APACHE LICENSE-MIT README.md SECURITY.md SECURITY_MODEL.md docs/api-stability.md \
             docs/security/engineering-evidence.md \
             docs/security/cryptographic-dependencies.md src/lib.rs \
             examples/build_request.rs examples/open_response.rs
@@ -410,7 +410,8 @@ printf '%s\n' \
     'publish = false' \
     >"$rc_repo/Cargo.toml"
 printf '%s\n' '# fixture lock' >"$rc_repo/Cargo.lock"
-printf '%s\n' license >"$rc_repo/LICENSE"
+printf '%s\n' license >"$rc_repo/LICENSE-APACHE"
+printf '%s\n' license >"$rc_repo/LICENSE-MIT"
 printf '%s\n' readme >"$rc_repo/README.md"
 printf '%s\n' security >"$rc_repo/SECURITY.md"
 printf '%s\n' '# Security Model' '**Model version:** 1' >"$rc_repo/SECURITY_MODEL.md"
@@ -508,7 +509,7 @@ case "$1" in
         test "${2-}" = --locked
         if test "${3-}" = --list; then
             printf '%s\n' \
-                LICENSE README.md SECURITY.md SECURITY_MODEL.md docs/api-stability.md \
+                LICENSE-APACHE LICENSE-MIT README.md SECURITY.md SECURITY_MODEL.md docs/api-stability.md \
                 docs/security/engineering-evidence.md \
                 docs/security/cryptographic-dependencies.md src/lib.rs \
                 examples/build_request.rs examples/open_response.rs
@@ -535,7 +536,7 @@ test "$(command -v cargo)" = "$FAKE_NIGHTLY_CARGO" || exit 81
 test "$(command -v rustc)" = "$FAKE_NIGHTLY_RUSTC" || exit 82
 case "$1:$2" in
     public-api:--version) printf '%s\n' 'cargo-public-api 0.52.0' ;;
-    fuzz:--version) printf '%s\n' 'cargo-fuzz 0.13.2' ;;
+    fuzz:--version) printf '%s\n' 'cargo-fuzz 0.13.1' ;;
     *) echo "unexpected nightly Cargo arguments: $*" >&2; exit 83 ;;
 esac
 EOF

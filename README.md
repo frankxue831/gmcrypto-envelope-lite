@@ -165,7 +165,7 @@ Removing sensitive material from the current tree does not remove it from Git hi
 
 ## Release status
 
-Version 0.1.0 is unreleased, and `Cargo.toml` keeps `publish = false`. Repository checks can produce an immutable `rc-built` artifact set containing the source export, Cargo package, manifest, and checksums for one exact commit.
+Version 0.1.0 is a release candidate: publishing is enabled in the manifest, and publication happens only after the external gates in the release checklist pass. Repository checks can produce an immutable `rc-built` artifact set containing the source export, Cargo package, manifest, and checksums for one exact commit.
 
 `rc-built` is evidence of repository gate completion, not approval for private exact-wire compatibility, independent security review, legal approval, production deployment, or publication. The blank [release checklist](RELEASE_CHECKLIST.md) defines those external states and is deliberately excluded from the Cargo package.
 

@@ -4,7 +4,7 @@ set -eu
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 inventory="$repo_root/docs/security/cryptographic-dependencies.md"
 snapshot="$repo_root/ci/crypto-inventory.snapshot"
-boundary_packages='base64@0.22.1 cmov@0.5.4 cpubits@0.1.1 crypto-bigint@0.7.5 ctutils@0.4.2 getrandom@0.4.3 gmcrypto-core@1.9.0 rand_core@0.10.1 spin@0.10.1 subtle@2.6.1 zeroize@1.9.0 zeroize_derive@1.5.0'
+boundary_packages='base64@0.22.1 cmov@0.5.4 cpubits@0.1.1 crypto-bigint@0.7.5 ctutils@0.4.2 getrandom@0.4.3 gmcrypto-core@1.11.0 rand_core@0.10.1 spin@0.10.1 subtle@2.6.1 zeroize@1.9.0 zeroize_derive@1.5.0'
 
 fail() {
     echo "error: $*" >&2
@@ -84,10 +84,10 @@ backend_field_count=$(grep -c '^- Backend registry checksum: ' "$inventory" || t
 test "$backend_field_count" -eq 1 || fail "inventory has no single Backend registry checksum field"
 documented_backend_checksum=$(sed -n 's/^- Backend registry checksum: `\([0-9a-f][0-9a-f]*\)`$/\1/p' "$inventory")
 valid_checksum "$documented_backend_checksum" || fail "inventory has an invalid Backend registry checksum"
-locked_backend_checksum=$(single_lock_checksum gmcrypto-core 1.9.0)
+locked_backend_checksum=$(single_lock_checksum gmcrypto-core 1.11.0)
 test "$locked_backend_checksum" = "$documented_backend_checksum" || fail "gmcrypto-core registry checksum differs from the inventory"
-grep -F 'gmcrypto-core = { version = "=1.9.0", features = ["x509"] }' \
-    "$repo_root/Cargo.toml" >/dev/null || fail "gmcrypto-core manifest pin or features changed"
+grep -F 'gmcrypto-core = { version = "1.11", features = ["x509"] }' \
+    "$repo_root/Cargo.toml" >/dev/null || fail "gmcrypto-core manifest requirement or features changed"
 
 expected_view=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-expected-view.XXXXXX")
 actual_view=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-actual-view.XXXXXX")

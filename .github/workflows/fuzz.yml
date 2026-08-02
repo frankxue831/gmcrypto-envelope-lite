@@ -21,6 +21,6 @@ jobs:
           toolchain: nightly-2026-05-23
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: Install pinned fuzzing tool
-        run: cargo install cargo-fuzz --version 0.13.2 --locked
+        run: cargo install cargo-fuzz --version 0.13.1 --locked
       - name: Run bounded extended fuzzing
         run: sh ci/fuzz-smoke.sh extended

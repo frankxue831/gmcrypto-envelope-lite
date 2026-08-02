@@ -11,26 +11,10 @@ const HOSTED_REPOSITORY_NAME_GATE: &str = "- [ ] Hosted GitHub repository is nam
 const CARGO_REPOSITORY_METADATA_GATE: &str = "- [ ] Cargo `repository` metadata resolves to the authorized hosted repository before publication.";
 const RELEASE_OWNER_AUTHORIZATION_GATE: &str = "- [ ] Authorized release owner confirmed that the reviewed commit and checksums are unchanged.";
 
-fn normalize_repository_text(contents: String) -> String {
-    contents.replace("\r\n", "\n")
-}
-
 fn repository_file(path: &str) -> String {
     let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(path);
-    normalize_repository_text(
-        fs::read_to_string(&full_path)
-            .unwrap_or_else(|error| panic!("unable to read {}: {error}", full_path.display())),
-    )
-}
-
-#[test]
-fn repository_text_normalizes_windows_line_endings() {
-    let windows_text = "name = \"gmcrypto-core\"\r\nversion = \"1.9.0\"\r\n".to_owned();
-
-    assert_eq!(
-        normalize_repository_text(windows_text),
-        "name = \"gmcrypto-core\"\nversion = \"1.9.0\"\n"
-    );
+    fs::read_to_string(&full_path)
+        .unwrap_or_else(|error| panic!("unable to read {}: {error}", full_path.display()))
 }
 
 fn assert_markers(document: &str, markers: &[&str]) {
@@ -210,8 +194,11 @@ fn crate_manifest_uses_final_identity() {
         &[
             "name = \"gmcrypto-envelope-lite\"",
             "name = \"gmcrypto_envelope_lite\"",
-            "publish = false",
         ],
+    );
+    assert!(
+        !manifest.contains("publish = false"),
+        "publication is enabled for the 0.1.0 release; publish = false must stay removed"
     );
 }
 
@@ -327,10 +314,6 @@ fn tracked_files_contain_only_intended_pre_rename_identity_references() {
             format!(
                 "- Initial import of `{former_package}`: a synchronous, HTTP-neutral library for SM2/SM3 signatures and SM4 secure envelopes."
             ),
-        ),
-        (
-            PathBuf::from("Cargo.toml"),
-            format!("repository = \"https://github.com/frankxue831/{former_package}\""),
         ),
     ];
     actual.sort();
@@ -467,17 +450,17 @@ fn cryptographic_dependency_inventory_records_the_reviewed_root_lockfile() {
     let lockfile = repository_file("Cargo.lock");
     let inventory = repository_file("docs/security/cryptographic-dependencies.md");
 
-    assert!(manifest.contains("gmcrypto-core = { version = \"=1.9.0\", features = [\"x509\"] }"));
-    assert!(lockfile.contains("name = \"gmcrypto-core\"\nversion = \"1.9.0\""));
+    assert!(manifest.contains("gmcrypto-core = { version = \"1.11\", features = [\"x509\"] }"));
+    assert!(lockfile.contains("name = \"gmcrypto-core\"\nversion = \"1.11.0\""));
     assert!(lockfile.contains(
-        "checksum = \"d93a065728aef78f84e82e2b3de88dc9ef8d504b35351657b0000ee9fe682d6d\""
+        "checksum = \"4e81a6030cdbef95407ef7924aa2b60469d1263e094b667295cd3d787c2c3095\""
     ));
     assert_markers(
         &inventory,
         &[
             "**Inventory version:** 1",
-            "`gmcrypto-core` | `1.9.0` | `x509`",
-            "`c0bf1eb1197d63c32e09abb007436a9998a698072facfe1fd4815fe2cffacf3e`",
+            "`gmcrypto-core` | `1.11.0` | `x509`",
+            "`284474aa170fcfa7a3cad31f3d3264d6fb7c6ceac49a99a213dc104e0ef23476`",
             "unsafe_code = \"forbid\"",
             "No universal constant-time claim",
         ],
