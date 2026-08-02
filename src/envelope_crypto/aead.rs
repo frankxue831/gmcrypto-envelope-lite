@@ -368,7 +368,7 @@ mod tests {
 
         for mutated in [
             with_mutated_frame(&valid, |frame| frame[0] ^= 0x01),
-            with_mutated_frame(&valid, |frame| frame[0] = 0x00),
+            with_mutated_frame(&valid, |frame| frame[0] = 0x02),
             with_mutated_frame(&valid, |frame| frame[1] = 0x02),
             with_mutated_frame(&valid, |frame| frame[1] = 0x7f),
         ] {
@@ -502,15 +502,21 @@ mod tests {
             Error::MessageTooLarge { limit: 17 }
         ));
 
-        // A 48-byte frame still encodes to 64 Base64 characters, but its
-        // 18-byte ciphertext body exceeds the 17-byte limit.
-        let mut decoded_frame = vec![0_u8; 48];
-        decoded_frame[0] = 0x01;
-        decoded_frame[1] = 0x01;
+        // A valid 48-byte frame still encodes to 64 Base64 characters, but its
+        // 18-byte ciphertext body exceeds the opening client's 17-byte limit.
+        let sealing_peers = aead_peers(AuthenticationMode::LegacyPlaintext, 18);
+        let valid = seal(
+            &sealing_peers.sender_config,
+            &sealing_peers.sender_keys,
+            &[b'z'; 18],
+            &legacy_context(),
+        )
+        .expect("seal valid 18-byte payload");
+        let decoded_frame = STANDARD.decode(&valid.cipher).expect("cipher Base64");
+        assert_eq!(decoded_frame.len(), 48);
         let decoded_too_large = SecureEnvelope {
             cipher: STANDARD.encode(decoded_frame),
-            wrapped_session_key: "not Base64".to_owned(),
-            signature: "not Base64".to_owned(),
+            ..valid
         };
         assert_invalid_envelope(open(
             &peers.receiver_config,
