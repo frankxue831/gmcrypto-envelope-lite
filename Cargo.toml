@@ -26,6 +26,10 @@ exclude = [
 name = "gmcrypto_envelope_lite"
 path = "src/lib.rs"
 
+[features]
+default = []
+aead = ["gmcrypto-core/sm4-aead"]
+
 [dependencies]
 base64 = "0.22.1"
 getrandom = { version = "0.4.0", features = ["sys_rng"] }

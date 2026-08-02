@@ -2,7 +2,7 @@
 
 **Inventory version:** 1
 
-- Reviewed Cargo.lock SHA-256: `284474aa170fcfa7a3cad31f3d3264d6fb7c6ceac49a99a213dc104e0ef23476`
+- Reviewed Cargo.lock SHA-256: `8ec9607b3f27388ccbe86acedf0e102dcaf02ab523d2d96589e32775ae5725b7`
 - Root crate policy: `#![forbid(unsafe_code)]`
 - Backend registry checksum: `4e81a6030cdbef95407ef7924aa2b60469d1263e094b667295cd3d787c2c3095`
 

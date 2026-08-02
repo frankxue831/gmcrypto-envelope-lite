@@ -461,7 +461,7 @@ fn cryptographic_dependency_inventory_records_the_reviewed_root_lockfile() {
         &[
             "**Inventory version:** 1",
             "`gmcrypto-core` | `1.11.0` | `x509`",
-            "`284474aa170fcfa7a3cad31f3d3264d6fb7c6ceac49a99a213dc104e0ef23476`",
+            "`8ec9607b3f27388ccbe86acedf0e102dcaf02ab523d2d96589e32775ae5725b7`",
             "unsafe_code = \"forbid\"",
             "No universal constant-time claim",
         ],

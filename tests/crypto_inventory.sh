@@ -59,7 +59,7 @@ cleanup_fixture
 
 make_fixture
 replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
-    'Reviewed Cargo.lock SHA-256: `284474aa170fcfa7a3cad31f3d3264d6fb7c6ceac49a99a213dc104e0ef23476`' \
+    'Reviewed Cargo.lock SHA-256: `8ec9607b3f27388ccbe86acedf0e102dcaf02ab523d2d96589e32775ae5725b7`' \
     'Reviewed Cargo.lock SHA-256: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
 expect_failure "stale documented lock hash" "Cargo.lock differs from the reviewed inventory"
 cleanup_fixture
