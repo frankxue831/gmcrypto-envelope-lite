@@ -53,7 +53,7 @@ The envelope mode is pinned by `ClientConfig` and never inferred from incoming b
 | --- | --- | --- |
 | Payload cipher | SM4-GCM with a fresh random 12-byte nonce per envelope | SM4-CBC with the configured fixed IV |
 | Ciphertext integrity | AEAD tag, verified before any plaintext is produced | none from the cipher; only the SM2 signature, after decryption |
-| Bound metadata | frame header, domain separator, and protocol context in the AAD | signed transcript only |
+| Bound metadata | frame header always; domain separator and protocol context under `ContextBound` (empty fields under `LegacyPlaintext`), all in the AAD | signed transcript only |
 | Replay protection | none — application concern | none — application concern |
 | Intended use | new integrations | existing deployed wires, supported indefinitely |
 

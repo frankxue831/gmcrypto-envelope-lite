@@ -29,7 +29,7 @@ Inbound header names, header values, bodies, Base64 text, wrapped keys, signatur
 
 Every seal operation generates a fresh 16-byte session key from the operating-system random source, encrypts plaintext with the configured compatibility SM4-CBC construction, wraps the session key for the configured remote encryption key, and signs the authentication input with the local signing key and signer ID.
 
-Under the opt-in `aead` feature and a configured AEAD envelope mode, sealing instead encrypts with SM4-GCM under a fresh random 12-byte nonce, authenticating a length-prefixed AAD of a fixed domain label, the cipher frame header, the configured domain separator, and the protocol context. Session-key freshness — not the nonce — is the primary defense against `(key, nonce)` reuse; the random nonce is defense in depth. The SM2 signature over the authentication input remains mandatory, because an AEAD tag under a session key encrypted to a public key proves nothing about the sender.
+Under the opt-in `aead` feature and a configured AEAD envelope mode, sealing instead encrypts with SM4-GCM under a fresh random 12-byte nonce. Its length-prefixed AAD always binds a fixed domain label and the cipher frame header; under `ContextBound` it also binds the configured domain separator and protocol context, while `LegacyPlaintext` encodes both as empty fields. Session-key freshness — not the nonce — is the primary defense against `(key, nonce)` reuse; the random nonce is defense in depth. The SM2 signature over the authentication input remains mandatory, because an AEAD tag under a session key encrypted to a public key proves nothing about the sender.
 
 ### Inbound envelopes
 
