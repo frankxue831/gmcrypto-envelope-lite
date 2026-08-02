@@ -228,8 +228,10 @@ check_actionlint() {
         fail "actionlint $ACTIONLINT_VERSION is required"
     installed_version=$(actionlint -version 2>/dev/null | sed -n '1p') || \
         fail "could not determine actionlint version"
-    test "$installed_version" = "$ACTIONLINT_VERSION" || \
-        fail "actionlint version mismatch: expected $ACTIONLINT_VERSION, found $installed_version"
+    case $installed_version in
+        "$ACTIONLINT_VERSION" | "v$ACTIONLINT_VERSION") ;;
+        *) fail "actionlint version mismatch: expected $ACTIONLINT_VERSION, found $installed_version" ;;
+    esac
     actionlint "$@" || fail "workflow YAML or GitHub Actions syntax is invalid"
 }
 
@@ -362,7 +364,7 @@ check_contract() (
         "          echo \"\$(go env GOPATH)/bin\" >> \"\$GITHUB_PATH\"" \
         "quality job must put the pinned actionlint binary on PATH"
     require_named_run "$check_tmp/ci-quality" 'Verify workflow checker version' \
-        "test \"\$(actionlint -version | sed -n '1p')\" = 1.7.12" \
+        "case \"\$(actionlint -version | sed -n '1p')\" in 1.7.12|v1.7.12) ;; *) actionlint -version; exit 1 ;; esac" \
         "$check_tmp/ci-quality-actionlint-version"
     for command in \
         'cargo fmt --all -- --check' \
@@ -409,7 +411,7 @@ check_contract() (
     check_toolchain "$check_tmp/ci-fuzz" nightly-2026-05-23 "$check_tmp/ci-fuzz-toolchain"
     check_cache "$check_tmp/ci-fuzz" "$check_tmp/ci-fuzz-cache"
     require_named_run "$check_tmp/ci-fuzz" 'Install pinned fuzzing tool' \
-        'cargo install cargo-fuzz --version 0.13.1 --locked' "$check_tmp/ci-fuzz-install"
+        'cargo install cargo-fuzz --version 0.13.2 --locked' "$check_tmp/ci-fuzz-install"
     require_named_run "$check_tmp/ci-fuzz" 'Exercise fuzz runner' \
         'sh tests/fuzz_smoke.sh' "$check_tmp/ci-fuzz-test"
     require_named_run "$check_tmp/ci-fuzz" 'Run bounded fuzz smoke' \
@@ -425,7 +427,7 @@ check_contract() (
     check_toolchain "$check_tmp/fuzz-job" nightly-2026-05-23 "$check_tmp/fuzz-toolchain"
     check_cache "$check_tmp/fuzz-job" "$check_tmp/fuzz-cache"
     require_named_run "$check_tmp/fuzz-job" 'Install pinned fuzzing tool' \
-        'cargo install cargo-fuzz --version 0.13.1 --locked' "$check_tmp/fuzz-install"
+        'cargo install cargo-fuzz --version 0.13.2 --locked' "$check_tmp/fuzz-install"
     require_named_run "$check_tmp/fuzz-job" 'Run bounded extended fuzzing' \
         'sh ci/fuzz-smoke.sh extended' "$check_tmp/fuzz-run"
 
@@ -452,7 +454,7 @@ check_contract() (
     for install in \
         '          cargo install cargo-deny --version 0.20.2 --locked' \
         '          cargo install cargo-public-api --version 0.52.0 --locked' \
-        '          cargo install cargo-fuzz --version 0.13.1 --locked'
+        '          cargo install cargo-fuzz --version 0.13.2 --locked'
     do
         require_exact_line "$check_tmp/release-tools" "$install" \
             "release-candidate job is missing a pinned tool install"

@@ -15,6 +15,7 @@ fn repository_file(path: &str) -> String {
     let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(path);
     fs::read_to_string(&full_path)
         .unwrap_or_else(|error| panic!("unable to read {}: {error}", full_path.display()))
+        .replace("\r\n", "\n")
 }
 
 fn assert_markers(document: &str, markers: &[&str]) {

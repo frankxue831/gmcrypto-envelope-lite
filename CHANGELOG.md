@@ -18,6 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Release-document contract tests now normalize CRLF line endings when reading repository files, so multi-line lockfile assertions hold on Windows checkouts that apply autocrlf conversion.
+- Refreshed the pinned CI tooling for current runner images: `cargo-fuzz` 0.13.1 to 0.13.2 (0.13.1 no longer compiles under the runners' updated stable Rust), and the actionlint version check now accepts the `v`-prefixed version string emitted by `go install` builds while still failing closed on any other version.
 - Refreshed the root lockfile from yanked `spin` 0.10.0 to 0.10.1, which contains the upstream `Once` move-out double-drop fix; this records the dependency fix without claiming that the SDK exercised the affected consuming APIs.
 - The boundary-scanner self-test now probes whether the environment can create symlink and FIFO fixtures (Windows Git Bash copies `ln -s` sources by default) and skips only those checks where the fixture cannot exist; Windows CI sets `MSYS=winsymlinks:nativestrict` to keep full assertion coverage with real native symlinks.
 - The denylist literal-path self-test no longer embeds a backslash in a single path component, which Windows path handling treats as a directory separator; backslash literalness is covered by a dedicated check that runs where such names round-trip.

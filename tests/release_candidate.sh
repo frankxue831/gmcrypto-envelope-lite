@@ -536,7 +536,7 @@ test "$(command -v cargo)" = "$FAKE_NIGHTLY_CARGO" || exit 81
 test "$(command -v rustc)" = "$FAKE_NIGHTLY_RUSTC" || exit 82
 case "$1:$2" in
     public-api:--version) printf '%s\n' 'cargo-public-api 0.52.0' ;;
-    fuzz:--version) printf '%s\n' 'cargo-fuzz 0.13.1' ;;
+    fuzz:--version) printf '%s\n' 'cargo-fuzz 0.13.2' ;;
     *) echo "unexpected nightly Cargo arguments: $*" >&2; exit 83 ;;
 esac
 EOF
