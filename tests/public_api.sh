@@ -40,9 +40,12 @@ mkdir -p "$fixture/ci" "$fixture/api" "$fixture/rustup-bin" \
     "$fixture/pinned-bin" "$fixture/other-pinned-bin" "$fixture/tmp" \
     "$fixture/ambient-stable-bin" "$fixture/ambient-nightly-bin"
 cp "$repo_root/ci/check-public-api.sh" "$repo_root/ci/tool-versions.sh" "$fixture/ci/"
-cp "$repo_root/api/gmcrypto-envelope-lite-0.1.0.txt" \
-    "$fixture/api/gmcrypto-envelope-lite-0.1.0.txt"
-cp "$repo_root/api/gmcrypto-envelope-lite-0.1.0.txt" "$fixture/generated.txt"
+cp "$repo_root/api/gmcrypto-envelope-lite-0.2.0.txt" \
+    "$fixture/api/gmcrypto-envelope-lite-0.2.0.txt"
+cp "$repo_root/api/gmcrypto-envelope-lite-0.2.0.txt" "$fixture/generated.txt"
+cp "$repo_root/api/gmcrypto-envelope-lite-0.2.0-aead.txt" \
+    "$fixture/api/gmcrypto-envelope-lite-0.2.0-aead.txt"
+cp "$repo_root/api/gmcrypto-envelope-lite-0.2.0-aead.txt" "$fixture/generated-aead.txt"
 
 for ambient_dir in "$fixture/ambient-stable-bin" "$fixture/ambient-nightly-bin"; do
     cat >"$ambient_dir/cargo" <<'EOF'
@@ -80,7 +83,19 @@ case "$1" in
             echo "simulated public API generator failure" >&2
             exit 71
         fi
-        cat "$FAKE_GENERATED"
+        case "${3:-}" in
+            '')
+                cat "$FAKE_GENERATED"
+                ;;
+            --features)
+                test "$4" = aead
+                cat "$FAKE_GENERATED_AEAD"
+                ;;
+            *)
+                echo "error: unexpected cargo public-api arguments" >&2
+                exit 91
+                ;;
+        esac
         ;;
     *)
         echo "error: unexpected cargo public-api arguments" >&2
@@ -165,6 +180,7 @@ run_checker() {
         FAKE_PINNED_CARGO="$fixture/pinned-bin/cargo" \
         FAKE_PINNED_RUSTC="$fixture/pinned-bin/rustc" \
         FAKE_GENERATED="$fixture/generated.txt" \
+        FAKE_GENERATED_AEAD="$fixture/generated-aead.txt" \
         FAKE_AMBIENT_CARGO_MARKER="$last_ambient_marker" TMPDIR="$fixture/tmp" \
         "$@" "$shell_under_test" "$fixture/ci/check-public-api.sh" \
         >"$fixture/$case_name.out" 2>"$fixture/$case_name.err"
@@ -222,20 +238,35 @@ fi
 assert_contains "$fixture/version.err" "error: cargo-public-api version mismatch: expected cargo-public-api 0.52.0, found cargo-public-api 9.9.9"
 assert_ambient_cargo_unused
 
-rm "$fixture/api/gmcrypto-envelope-lite-0.1.0.txt"
+rm "$fixture/api/gmcrypto-envelope-lite-0.2.0.txt"
 if run_checker missing "$fixture/ambient-stable-bin"; then
     fail "missing snapshot unexpectedly succeeded"
 fi
 assert_contains "$fixture/missing.err" "error: public API snapshot is missing"
-cp "$fixture/generated.txt" "$fixture/api/gmcrypto-envelope-lite-0.1.0.txt"
+cp "$fixture/generated.txt" "$fixture/api/gmcrypto-envelope-lite-0.2.0.txt"
 
-printf 'intentional snapshot drift\n' >"$fixture/api/gmcrypto-envelope-lite-0.1.0.txt"
+printf 'intentional snapshot drift\n' >"$fixture/api/gmcrypto-envelope-lite-0.2.0.txt"
 if run_checker drift "$fixture/ambient-stable-bin"; then
     fail "snapshot drift unexpectedly succeeded"
 fi
-assert_contains "$fixture/drift.err" "error: public API differs from the 0.1.0 snapshot"
+assert_contains "$fixture/drift.err" "error: public API differs from the 0.2.0 snapshot"
 assert_contains "$fixture/drift.out" "-intentional snapshot drift"
-cp "$fixture/generated.txt" "$fixture/api/gmcrypto-envelope-lite-0.1.0.txt"
+cp "$fixture/generated.txt" "$fixture/api/gmcrypto-envelope-lite-0.2.0.txt"
+
+rm "$fixture/api/gmcrypto-envelope-lite-0.2.0-aead.txt"
+if run_checker missing-aead "$fixture/ambient-stable-bin"; then
+    fail "missing AEAD snapshot unexpectedly succeeded"
+fi
+assert_contains "$fixture/missing-aead.err" "error: AEAD public API snapshot is missing"
+cp "$fixture/generated-aead.txt" "$fixture/api/gmcrypto-envelope-lite-0.2.0-aead.txt"
+
+printf 'intentional aead snapshot drift\n' >"$fixture/api/gmcrypto-envelope-lite-0.2.0-aead.txt"
+if run_checker drift-aead "$fixture/ambient-stable-bin"; then
+    fail "AEAD snapshot drift unexpectedly succeeded"
+fi
+assert_contains "$fixture/drift-aead.err" "error: AEAD public API differs from the 0.2.0 snapshot"
+assert_contains "$fixture/drift-aead.out" "-intentional aead snapshot drift"
+cp "$fixture/generated-aead.txt" "$fixture/api/gmcrypto-envelope-lite-0.2.0-aead.txt"
 
 if run_checker generator "$fixture/ambient-stable-bin" FAKE_GENERATOR_FAILURE=1; then
     fail "generator failure unexpectedly succeeded"

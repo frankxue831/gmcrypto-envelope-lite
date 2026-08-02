@@ -199,7 +199,7 @@ fn crate_manifest_uses_final_identity() {
     );
     assert!(
         !manifest.contains("publish = false"),
-        "publication is enabled for the 0.1.0 release; publish = false must stay removed"
+        "publication is enabled for the 0.2.0 release; publish = false must stay removed"
     );
 }
 
@@ -411,17 +411,19 @@ fn api_stability_policy_records_open_and_closed_boundaries() {
     assert_markers(
         &policy,
         &[
-            "**Policy version:** 1",
+            "**Policy version:** 2",
+            "Within 0.2.x",
             "AuthenticationMode",
             "AdapterErrorKind",
             "KeyKind",
             "PeerKeySource",
             "Error",
-            "`AuthenticationMode`, `AdapterErrorKind`, `KeyKind`, `PeerKeySource`, and `Error` are `#[non_exhaustive]`.",
+            "`AuthenticationMode`, `AdapterErrorKind`, `KeyKind`, `PeerKeySource`, `Error`, and the feature-gated `EnvelopeMode` and `AeadAlgorithm` are `#[non_exhaustive]`.",
             "CipherLocation",
             "`CipherLocation` is exhaustive",
             "ProtocolAdapter",
-            "api/gmcrypto-envelope-lite-0.1.0.txt",
+            "api/gmcrypto-envelope-lite-0.2.0.txt",
+            "api/gmcrypto-envelope-lite-0.2.0-aead.txt",
         ],
     );
 }
@@ -461,7 +463,7 @@ fn cryptographic_dependency_inventory_records_the_reviewed_root_lockfile() {
         &[
             "**Inventory version:** 2",
             "`gmcrypto-core` | `1.11.0` | `x509`",
-            "`8ec9607b3f27388ccbe86acedf0e102dcaf02ab523d2d96589e32775ae5725b7`",
+            "`cb3fed2e6bc3653fdab3cfd026c828418c183aa97535308668dd15d59fdf6bfa`",
             "unsafe_code = \"forbid\"",
             "No universal constant-time claim",
         ],

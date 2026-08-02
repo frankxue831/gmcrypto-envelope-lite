@@ -4,13 +4,16 @@ set -eu
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 . "$repo_root/ci/tool-versions.sh"
 unset RUSTUP_TOOLCHAIN
-snapshot="$repo_root/api/gmcrypto-envelope-lite-0.1.0.txt"
+snapshot="$repo_root/api/gmcrypto-envelope-lite-0.2.0.txt"
+aead_snapshot="$repo_root/api/gmcrypto-envelope-lite-0.2.0-aead.txt"
 which_cargo_error=
 which_rustc_error=
 toolchain_error=
 version_error=
 generator_error=
 generated=
+generator_aead_error=
+generated_aead=
 
 fail() {
     echo "error: $*" >&2
@@ -19,7 +22,8 @@ fail() {
 
 cleanup() {
     rm -f -- "$which_cargo_error" "$which_rustc_error" "$toolchain_error" \
-        "$version_error" "$generator_error" "$generated"
+        "$version_error" "$generator_error" "$generated" \
+        "$generator_aead_error" "$generated_aead"
 }
 
 trap cleanup EXIT HUP INT TERM
@@ -69,6 +73,7 @@ expected_version="cargo-public-api $CARGO_PUBLIC_API_VERSION"
 test "$actual_version" = "$expected_version" || \
     fail "cargo-public-api version mismatch: expected $expected_version, found ${actual_version:-missing cargo-public-api}"
 test -f "$snapshot" || fail "public API snapshot is missing"
+test -f "$aead_snapshot" || fail "AEAD public API snapshot is missing"
 
 generated=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-public-api.XXXXXX") || \
     fail "could not create a public API snapshot temporary file"
@@ -80,9 +85,24 @@ if ! (cd "$repo_root" && rustup run "$PUBLIC_API_TOOLCHAIN" \
     fail "public API snapshot generator failed"
 fi
 
+generated_aead=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-public-api-aead.XXXXXX") || \
+    fail "could not create an AEAD public API snapshot temporary file"
+generator_aead_error=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-public-api-generator-aead.XXXXXX") || \
+    fail "could not create an AEAD public API generator diagnostic file"
+if ! (cd "$repo_root" && rustup run "$PUBLIC_API_TOOLCHAIN" \
+    "$pinned_cargo" public-api -ss --color=never --features aead) \
+    >"$generated_aead" 2>"$generator_aead_error"; then
+    cat "$generator_aead_error" >&2
+    fail "AEAD public API snapshot generator failed"
+fi
+
 if ! cmp -s "$snapshot" "$generated"; then
     diff -u "$snapshot" "$generated" || true
-    fail "public API differs from the 0.1.0 snapshot"
+    fail "public API differs from the 0.2.0 snapshot"
+fi
+if ! cmp -s "$aead_snapshot" "$generated_aead"; then
+    diff -u "$aead_snapshot" "$generated_aead" || true
+    fail "AEAD public API differs from the 0.2.0 snapshot"
 fi
 
 echo "public API snapshot check passed"

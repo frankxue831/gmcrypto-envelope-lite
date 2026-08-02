@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Opt-in `aead` feature: an SM4-GCM authenticated-encryption envelope mode (`EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm)`) pinned by `ClientConfig`, framed inside the existing `cipher` field (version, algorithm id, 12-byte random nonce, ciphertext, 16-byte tag) so `SecureEnvelope`, `ProtocolAdapter`, `HeaderSchema`, and `KeyMaterial` are unchanged. The AAD binds the frame header, domain separator, and protocol context; the SM2 signature remains mandatory. There is no mode negotiation: an AEAD client rejects CBC envelopes outright and vice versa. Enabling the feature compiles `gmcrypto-simd` and `cpufeatures`, recorded in a second, feature-scoped cryptographic-inventory tier.
+- SM4-GCM known-answer test pinned to RFC 8998 Appendix A.1, an `aead_envelope` fuzz target with a curated corpus, and CI coverage (`cargo test/clippy/doc --features aead`) on all platforms plus MSRV.
+
+### Changed
+
+- Version identity moved to 0.2.0; the public API surface under default features is content-identical to the 0.1.0 snapshot. Security model, engineering evidence, API-stability policy, and cryptographic inventory documents advanced to version 2.
+
 ## [0.1.0] - 2026-08-02
 
 ### Changed
