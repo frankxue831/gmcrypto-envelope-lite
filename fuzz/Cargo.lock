@@ -132,6 +132,7 @@ dependencies = [
 name = "gmcrypto-envelope-lite-fuzz"
 version = "0.0.0"
 dependencies = [
+ "base64",
  "gmcrypto-core",
  "gmcrypto-envelope-lite",
  "libfuzzer-sys",

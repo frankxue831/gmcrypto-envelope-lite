@@ -4,6 +4,8 @@ mod support;
 use std::fs;
 use std::path::Path;
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 use gmcrypto_envelope_lite::{Error, ProtocolAdapter, RequestParts, ResponseParts};
 
 const FULL_VALID_OPEN: &[u8] = include_bytes!("../corpus/encoded_envelope/full_valid_open");
@@ -208,7 +210,7 @@ fn every_tracked_seed_has_a_contract_case() {
 }
 
 #[test]
-fn curated_aead_seeds_open_reject_and_hit_the_cipher_limit() {
+fn curated_aead_seeds_open_or_reject_as_their_contract_requires() {
     let open_with = |seed: &[u8]| {
         let (signature, wrapped_key, cipher) = support::aead_encoded_values(seed);
         support::aead_client().open_response(ResponseParts::new(
@@ -233,6 +235,53 @@ fn curated_aead_seeds_open_reject_and_hit_the_cipher_limit() {
             continue;
         }
         assert!(open_with(seed).is_err(), "{name} must be rejected");
+    }
+}
+
+#[test]
+fn curated_aead_mutation_seeds_change_their_named_frame_regions() {
+    let valid_cipher = &support::aead_valid_envelope().cipher;
+    let valid = STANDARD
+        .decode(valid_cipher)
+        .expect("valid AEAD cipher is Base64");
+    assert_eq!(valid.len(), 43, "fixture frame length");
+
+    for (name, seed, selector, expected_changed_bytes) in [
+        (
+            "cryptographic_mutation_nonce",
+            include_bytes!("../corpus/aead_envelope/cryptographic_mutation_nonce").as_slice(),
+            8,
+            &[6][..],
+        ),
+        (
+            "cryptographic_mutation_cipher",
+            include_bytes!("../corpus/aead_envelope/cryptographic_mutation_cipher").as_slice(),
+            20,
+            &[15][..],
+        ),
+        (
+            "cryptographic_mutation_tag",
+            include_bytes!("../corpus/aead_envelope/cryptographic_mutation_tag").as_slice(),
+            40,
+            &[30][..],
+        ),
+    ] {
+        let (_, _, cipher) = support::aead_encoded_values(seed);
+        let changed_base64_positions = valid_cipher
+            .bytes()
+            .zip(cipher.bytes())
+            .enumerate()
+            .filter_map(|(offset, (before, after))| (before != after).then_some(offset))
+            .collect::<Vec<_>>();
+        assert_eq!(changed_base64_positions, [selector], "{name}");
+        let mutated = STANDARD.decode(cipher).expect("mutated cipher is Base64");
+        let changed = valid
+            .iter()
+            .zip(mutated)
+            .enumerate()
+            .filter_map(|(offset, (before, after))| (before != &after).then_some(offset))
+            .collect::<Vec<_>>();
+        assert_eq!(changed, expected_changed_bytes, "{name}");
     }
 }
 
