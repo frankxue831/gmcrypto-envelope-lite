@@ -153,6 +153,16 @@ cleanup_fixture
 
 make_fixture
 replace_text "$fixture/ci/crypto-inventory-aead.snapshot" \
+    'gmcrypto-simd|1.11.0|none|' \
+    'gmcrypto-simd|1.12.0|none|'
+replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
+    '| `gmcrypto-simd` | `1.11.0` | `none` |' \
+    '| `gmcrypto-simd` | `1.12.0` | `none` |'
+expect_failure "re-versioned AEAD package" "AEAD cryptographic dependency snapshot has missing, unexpected, or re-versioned packages"
+cleanup_fixture
+
+make_fixture
+replace_text "$fixture/ci/crypto-inventory-aead.snapshot" \
     'gmcrypto-core|1.11.0|default,sm4-aead,x509|' \
     'gmcrypto-core|1.11.0|default,x509|'
 expect_failure "AEAD snapshot feature drift" "human-readable cryptographic dependency table differs from the reviewed snapshot"

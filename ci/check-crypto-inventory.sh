@@ -100,6 +100,8 @@ expected_names=
 boundary_names=
 aead_expected_names=
 aead_boundary_names=
+aead_expected_package_versions=
+aead_boundary_package_versions=
 document_rows=
 document_view=
 snapshot_view=
@@ -109,9 +111,10 @@ overlay_expected_view=
 cleanup() {
     for temporary_file in \
         "$expected_view" "$actual_view" "$expected_names" "$boundary_names" \
-        "$aead_expected_names" "$aead_boundary_names" "$document_rows" \
-        "$document_view" "$snapshot_view" "$overlay_expected" \
-        "$overlay_actual" "$overlay_expected_view"
+        "$aead_expected_names" "$aead_boundary_names" \
+        "$aead_expected_package_versions" "$aead_boundary_package_versions" \
+        "$document_rows" "$document_view" "$snapshot_view" \
+        "$overlay_expected" "$overlay_actual" "$overlay_expected_view"
     do
         test -z "$temporary_file" || rm -f "$temporary_file"
     done
@@ -124,6 +127,8 @@ expected_names=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-expected-names.XXXXXX")
 boundary_names=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-boundary-names.XXXXXX")
 aead_expected_names=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-aead-expected-names.XXXXXX")
 aead_boundary_names=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-aead-boundary-names.XXXXXX")
+aead_expected_package_versions=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-aead-expected-package-versions.XXXXXX")
+aead_boundary_package_versions=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-aead-boundary-package-versions.XXXXXX")
 document_rows=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-document-rows.XXXXXX")
 document_view=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-document-view.XXXXXX")
 snapshot_view=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-snapshot-view.XXXXXX")
@@ -165,6 +170,13 @@ for package_version in $aead_boundary_packages; do
     printf '%s\n' "${package_version%@*}"
 done | LC_ALL=C sort >"$aead_boundary_names"
 cmp -s "$aead_boundary_names" "$aead_expected_names" || fail "AEAD cryptographic dependency snapshot has missing or unexpected packages"
+grep -v '^#' "$aead_snapshot" | sed '/^$/d' | \
+    awk -F'|' '{ print $1 "@" $2 }' | LC_ALL=C sort >"$aead_expected_package_versions"
+for package_version in $aead_boundary_packages; do
+    printf '%s\n' "$package_version"
+done | LC_ALL=C sort >"$aead_boundary_package_versions"
+cmp -s "$aead_boundary_package_versions" "$aead_expected_package_versions" || \
+    fail "AEAD cryptographic dependency snapshot has missing, unexpected, or re-versioned packages"
 
 if ! awk -F'|' '
     function trim(value) {
