@@ -502,8 +502,9 @@ mod tests {
             Error::MessageTooLarge { limit: 17 }
         ));
 
-        // A valid 48-byte frame still encodes to 64 Base64 characters, but its
-        // 18-byte ciphertext body exceeds the opening client's 17-byte limit.
+        // An authentic 48-byte frame for an 18-byte plaintext still encodes
+        // within the opening client's 64-character public Base64 bound, but
+        // its ciphertext body exceeds that client's 17-byte decoded limit.
         let sealing_peers = aead_peers(AuthenticationMode::LegacyPlaintext, 18);
         let valid = seal(
             &sealing_peers.sender_config,
@@ -514,6 +515,7 @@ mod tests {
         .expect("seal valid 18-byte payload");
         let decoded_frame = STANDARD.decode(&valid.cipher).expect("cipher Base64");
         assert_eq!(decoded_frame.len(), 48);
+        assert_eq!(valid.cipher.len(), 64);
         let decoded_too_large = SecureEnvelope {
             cipher: STANDARD.encode(decoded_frame),
             ..valid
@@ -522,26 +524,6 @@ mod tests {
             &peers.receiver_config,
             &peers.receiver_keys,
             &decoded_too_large,
-            &legacy_context(),
-        ));
-    }
-
-    #[test]
-    fn aead_open_never_returns_plaintext_sealed_beyond_the_local_limit() {
-        let sealing_peers = aead_peers(AuthenticationMode::LegacyPlaintext, 18);
-        let opening_peers = aead_peers(AuthenticationMode::LegacyPlaintext, 17);
-        let envelope = seal(
-            &sealing_peers.sender_config,
-            &sealing_peers.sender_keys,
-            &[b'z'; 18],
-            &legacy_context(),
-        )
-        .expect("seal within the sender's limit");
-
-        assert_invalid_envelope(open(
-            &opening_peers.receiver_config,
-            &opening_peers.receiver_keys,
-            &envelope,
             &legacy_context(),
         ));
     }
