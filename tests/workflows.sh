@@ -386,6 +386,9 @@ check_contract() (
         require_run_step "$check_tmp/ci-quality" "$command" \
             "quality job is missing required run step: $command"
     done
+    require_named_run "$check_tmp/ci-quality" 'Verify fuzz workspace formatting' \
+        'cargo fmt --manifest-path fuzz/Cargo.toml --all -- --check' \
+        "$check_tmp/ci-quality-fuzz-fmt"
     require_named_run "$check_tmp/ci-quality" 'Exercise release-candidate constructor' \
         'sh tests/release_candidate.sh' "$check_tmp/ci-quality-release-test"
     require_named_run "$check_tmp/ci-quality" 'Verify workflow contracts' \
