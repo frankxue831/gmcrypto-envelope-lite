@@ -283,6 +283,72 @@ mod tests {
     }
 
     #[test]
+    fn aead_plaintext_length_sweep_round_trips_across_frame_and_base64_boundaries() {
+        // GCM does not pad, so the CBC block boundaries do not apply here --
+        // what does is the frame's fixed overhead around a variable-length
+        // ciphertext, and Base64 alignment of the framed result. The sweep
+        // covers both, plus the same lengths the CBC sweep uses so a core
+        // regression that hits one mode and not the other is visible.
+        const LENGTHS: &[usize] = &[
+            0, 1, 2, 3, 4, 5, // empty, and each Base64 group alignment
+            15, 16, 17, 31, 32, 33, // where CBC would change padding
+            63, 64, 65, 255, 256, 257, 1023, 1024, 1025,
+        ];
+
+        let cases = [
+            (AuthenticationMode::LegacyPlaintext, legacy_context()),
+            (
+                AuthenticationMode::context_bound(b"example/aead-sweep/v1")
+                    .expect("nonempty domain separator"),
+                AuthenticationContext::context_bound(b"operation=sweep").expect("bound context"),
+            ),
+        ];
+
+        for (mode, context) in cases {
+            let peers = aead_peers(mode, 2048);
+            for &length in LENGTHS {
+                // Position-dependent bytes: a truncation or off-by-one in the
+                // frame arithmetic that a constant payload would hide changes
+                // the compared value here.
+                let plaintext: Vec<u8> = (0..length).map(|index| (index % 251) as u8).collect();
+
+                let envelope = seal(
+                    &peers.sender_config,
+                    &peers.sender_keys,
+                    &plaintext,
+                    &context,
+                )
+                .unwrap_or_else(|error| panic!("seal {length} bytes: {error}"));
+
+                // The frame carries a fixed header and tag around the
+                // ciphertext, and GCM ciphertext is the plaintext length.
+                let framed = STANDARD
+                    .decode(&envelope.cipher)
+                    .expect("framed cipher is Base64");
+                assert_eq!(
+                    framed.len(),
+                    length + FRAME_OVERHEAD_BYTES,
+                    "frame overhead must stay constant at {length} bytes"
+                );
+
+                let opened = open(
+                    &peers.receiver_config,
+                    &peers.receiver_keys,
+                    &envelope,
+                    &context,
+                )
+                .unwrap_or_else(|error| panic!("open {length} bytes: {error}"));
+
+                assert_eq!(
+                    opened.as_slice(),
+                    plaintext.as_slice(),
+                    "round trip must be exact at {length} bytes"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn every_aead_seal_uses_a_fresh_session_key_and_nonce() {
         let peers = aead_peers(AuthenticationMode::LegacyPlaintext, 128);
         let plaintext = b"same payload";
