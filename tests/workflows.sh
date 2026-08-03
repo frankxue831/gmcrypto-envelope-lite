@@ -201,10 +201,10 @@ check_action_pins() {
         fail "every workflow action must use an approved immutable commit and version comment"
     fi
 
-    check_action_count "$CHECKOUT_ACTION" 6 "$@"
-    check_action_count "$RUST_TOOLCHAIN_ACTION" 6 "$@"
-    check_action_count "$RUST_CACHE_ACTION" 6 "$@"
-    check_action_count "$UPLOAD_ACTION" 1 "$@"
+    check_action_count "$CHECKOUT_ACTION" 7 "$@"
+    check_action_count "$RUST_TOOLCHAIN_ACTION" 7 "$@"
+    check_action_count "$RUST_CACHE_ACTION" 7 "$@"
+    check_action_count "$UPLOAD_ACTION" 2 "$@"
 }
 
 check_action_count() {
@@ -293,16 +293,18 @@ check_contract() (
     ci="$check_root/.github/workflows/ci.yml"
     fuzz="$check_root/.github/workflows/fuzz.yml"
     release="$check_root/.github/workflows/release-candidate.yml"
+    gate="$check_root/.github/workflows/compatibility-gate.yml"
 
     require_file "$ci"
     require_file "$fuzz"
     require_file "$release"
-    check_actionlint "$ci" "$fuzz" "$release"
-    check_yaml_key_syntax "$ci" "$fuzz" "$release"
-    check_blocking_gates "$ci" "$fuzz" "$release"
-    check_forbidden_publication "$ci" "$fuzz" "$release"
-    check_install_pins "$ci" "$fuzz" "$release"
-    check_action_pins "$ci" "$fuzz" "$release"
+    require_file "$gate"
+    check_actionlint "$ci" "$fuzz" "$release" "$gate"
+    check_yaml_key_syntax "$ci" "$fuzz" "$release" "$gate"
+    check_blocking_gates "$ci" "$fuzz" "$release" "$gate"
+    check_forbidden_publication "$ci" "$fuzz" "$release" "$gate"
+    check_install_pins "$ci" "$fuzz" "$release" "$gate"
+    check_action_pins "$ci" "$fuzz" "$release" "$gate"
 
     require_regex "$ci" '^name:[[:space:]]*CI[[:space:]]*$' "CI workflow name is not exact"
     check_events "$ci" "$check_tmp/ci-events" push pull_request
@@ -394,6 +396,8 @@ check_contract() (
         './ci/check-public-api.sh' "$check_tmp/ci-quality-public-api"
     require_named_run "$check_tmp/ci-quality" 'Exercise cryptographic inventory checker' \
         'sh tests/crypto_inventory.sh' "$check_tmp/ci-quality-inventory-test"
+    require_named_run "$check_tmp/ci-quality" 'Exercise compatibility gate' \
+        'sh tests/compatibility_gate.sh' "$check_tmp/ci-quality-compat-gate-test"
     require_named_run "$check_tmp/ci-quality" 'Verify cryptographic dependency inventory' \
         './ci/check-crypto-inventory.sh' "$check_tmp/ci-quality-inventory"
     require_named_run "$check_tmp/ci-quality" 'Verify current checkout boundary' \
@@ -482,6 +486,44 @@ check_contract() (
         "release-candidate upload must fail on missing files"
     require_exact_line "$check_tmp/release-upload" '          retention-days: 14' \
         "release-candidate retention must be 14 days"
+
+    require_regex "$gate" '^name:[[:space:]]*Compatibility gate[[:space:]]*$' \
+        "compatibility-gate workflow name is not exact"
+    check_events "$gate" "$check_tmp/gate-events" workflow_dispatch
+    check_permissions "$gate" "$check_tmp/gate-permissions"
+    check_job "$gate" gate "$check_tmp/gate-job"
+    require_regex "$check_tmp/gate-job" 'runs-on:[[:space:]]*ubuntu-latest' \
+        "compatibility-gate job must run on Ubuntu"
+    check_checkout "$check_tmp/gate-job" "$check_tmp/gate-checkout"
+    check_toolchain "$check_tmp/gate-job" stable "$check_tmp/gate-toolchain"
+    require_exact_line "$check_tmp/gate-toolchain" '          components: clippy,rustfmt' \
+        "compatibility-gate stable toolchain must include clippy and rustfmt"
+    check_cache "$check_tmp/gate-job" "$check_tmp/gate-cache"
+    check_named_step "$check_tmp/gate-job" 'Fetch the gmcrypto-core candidate' \
+        "$check_tmp/gate-fetch"
+    # The candidate ref is caller-supplied input. It must reach the shell
+    # through the environment; interpolating it into `run` is a script
+    # injection, not a convenience.
+    require_exact_line "$check_tmp/gate-fetch" '          CORE_REF: ${{ inputs.core_ref }}' \
+        "compatibility-gate must bind the candidate ref through the environment"
+    require_regex "$check_tmp/gate-fetch" 'checkout --detach "\$CORE_REF"' \
+        "compatibility-gate must check out the candidate ref from the environment"
+    require_named_run "$check_tmp/gate-job" 'Run compatibility gate' \
+        "./ci/check-compatibility-gate.sh \"\$RUNNER_TEMP/core-candidate\" \"\$RUNNER_TEMP/gate1-evidence.md\"" \
+        "$check_tmp/gate-run"
+    check_action_step "$check_tmp/gate-job" "$UPLOAD_ACTION" "$check_tmp/gate-upload"
+    require_exact_line "$check_tmp/gate-upload" '        with:' \
+        "compatibility-gate upload must define exactly one with block"
+    require_exact_line "$check_tmp/gate-upload" \
+        "          name: gate1-evidence-\${{ github.sha }}" \
+        "compatibility-gate artifact name must bind the commit"
+    require_exact_line "$check_tmp/gate-upload" \
+        "          path: \${{ runner.temp }}/gate1-evidence.md" \
+        "compatibility-gate artifact path is not exact"
+    require_exact_line "$check_tmp/gate-upload" '          if-no-files-found: error' \
+        "compatibility-gate upload must fail on missing evidence"
+    require_exact_line "$check_tmp/gate-upload" '          retention-days: 90' \
+        "compatibility-gate evidence retention must be 90 days"
 )
 
 umask 077
@@ -499,7 +541,15 @@ mkdir -p "$tmp/fixture/.github/workflows"
 cp "$repo_root/.github/workflows/ci.yml" \
     "$repo_root/.github/workflows/fuzz.yml" \
     "$repo_root/.github/workflows/release-candidate.yml" \
+    "$repo_root/.github/workflows/compatibility-gate.yml" \
     "$tmp/fixture/.github/workflows/"
+
+lint_fixture_workflows() {
+    actionlint "$1/.github/workflows/ci.yml" \
+        "$1/.github/workflows/fuzz.yml" \
+        "$1/.github/workflows/release-candidate.yml" \
+        "$1/.github/workflows/compatibility-gate.yml"
+}
 
 expect_mutation_rejected() {
     label=$1
@@ -512,9 +562,7 @@ expect_mutation_rejected() {
 expect_valid_mutation_rejected() {
     label=$1
     fixture_root=$2
-    if ! actionlint "$fixture_root/.github/workflows/ci.yml" \
-        "$fixture_root/.github/workflows/fuzz.yml" \
-        "$fixture_root/.github/workflows/release-candidate.yml" \
+    if ! lint_fixture_workflows "$fixture_root" \
         >"$tmp/mutation-actionlint.out" 2>&1; then
         cat "$tmp/mutation-actionlint.out" >&2
         fail "$label mutation must remain valid workflow YAML"
@@ -525,9 +573,7 @@ expect_valid_mutation_rejected() {
 expect_valid_mutation_accepted() {
     label=$1
     fixture_root=$2
-    if ! actionlint "$fixture_root/.github/workflows/ci.yml" \
-        "$fixture_root/.github/workflows/fuzz.yml" \
-        "$fixture_root/.github/workflows/release-candidate.yml" \
+    if ! lint_fixture_workflows "$fixture_root" \
         >"$tmp/mutation-actionlint.out" 2>&1; then
         cat "$tmp/mutation-actionlint.out" >&2
         fail "$label mutation must remain valid workflow YAML"

@@ -8,7 +8,7 @@ The versioned [Security model](SECURITY_MODEL.md) is the authoritative list of c
 
 `gmcrypto-envelope-lite` is the independently versioned public protocol layer above `gmcrypto-core`; it consumes core cryptography without exposing core types in its public API. Partner-specific wire mappings, identities, and exact-wire fixtures remain in private downstream adapters.
 
-Official membership, layering, versioning, admission rules, and compatibility gates are defined by the [gmcrypto Rust ecosystem charter](https://github.com/frankxue831/gm-crypto-rs/blob/main/docs/ECOSYSTEM.md). This crate's 0.1.0 RC suite is compatibility gate #1 for candidate `gmcrypto-core` releases.
+Official membership, layering, versioning, admission rules, and compatibility gates are defined by the [gmcrypto Rust ecosystem charter](https://github.com/frankxue831/gm-crypto-rs/blob/main/docs/ECOSYSTEM.md). This crate's gate suite is compatibility gate #1 for candidate `gmcrypto-core` releases: `ci/check-compatibility-gate.sh` runs it against a candidate core in every feature configuration this crate ships, and the charter requires a passing run before any core release.
 
 The crate turns application bytes into transport-neutral `RequestParts` and opens `ResponseParts` only after authentication. It does not send HTTP, select an async runtime, establish TLS, retry requests, manage endpoints, or impose an HTTP client.
 

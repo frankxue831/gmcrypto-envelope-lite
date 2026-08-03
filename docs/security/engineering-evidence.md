@@ -27,6 +27,7 @@ This engineering evidence map is not an independent audit, certification, warran
 | The envelope mode is config-pinned with no downgrade path | `src/envelope_crypto/aead.rs::tests::aead_and_cbc_clients_reject_each_other_s_envelopes`; `tests/aead_envelope.rs::aead_and_cbc_secure_clients_reject_each_other_s_envelopes` | Required test |
 | The AAD binds the frame header, domain separator, and protocol context | `src/auth.rs::tests::aead_aad_is_length_prefixed_label_header_domain_and_context`; `src/envelope_crypto/aead.rs::tests::aead_seal_gcm_tag_binds_literal_label_header_domain_and_context` | Required discriminating test |
 | SM4-GCM matches the public standard vector | `tests/standard_vectors.rs::sm4_gcm_matches_rfc_8998_appendix_a_1` | Non-removable KAT gate |
+| A `gmcrypto-core` candidate is exercised against this crate in every shipped feature configuration before that core release ships | `ci/check-compatibility-gate.sh`; `tests/compatibility_gate.sh`; `.github/workflows/compatibility-gate.yml`; `gm-crypto-rs/docs/ECOSYSTEM.md` section 8 | Required compatibility gate, manually triggered |
 
 ## External evidence
 
