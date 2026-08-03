@@ -89,6 +89,8 @@ jobs:
         run: ./ci/check-public-api.sh
       - name: Exercise cryptographic inventory checker
         run: sh tests/crypto_inventory.sh
+      - name: Exercise compatibility gate
+        run: sh tests/compatibility_gate.sh
       - name: Verify cryptographic dependency inventory
         run: ./ci/check-crypto-inventory.sh
       - run: cargo deny check
