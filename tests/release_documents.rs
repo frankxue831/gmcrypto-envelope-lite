@@ -215,7 +215,8 @@ fn ecosystem_position_and_remote_rename_gate_are_documented() {
             "without exposing core types in its public API",
             "Partner-specific wire mappings, identities, and exact-wire fixtures remain in private downstream adapters.",
             "[gmcrypto Rust ecosystem charter](https://github.com/frankxue831/gm-crypto-rs/blob/main/docs/ECOSYSTEM.md)",
-            "This crate's 0.1.0 RC suite is compatibility gate #1 for candidate `gmcrypto-core` releases.",
+            "This crate's gate suite is compatibility gate #1 for candidate `gmcrypto-core` releases",
+            "`ci/check-compatibility-gate.sh` runs it against a candidate core in every feature configuration this crate ships",
         ],
     );
 
