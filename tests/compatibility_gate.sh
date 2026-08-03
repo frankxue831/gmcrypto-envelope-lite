@@ -106,15 +106,24 @@ gate_script="$envelope/ci/check-compatibility-gate.sh"
 
 # --- fixture repositories ---------------------------------------------------
 
-printf '[package]\nname = "fixture-envelope"\nversion = "0.0.0"\n' >"$envelope/Cargo.toml"
+write_envelope_manifest() {
+    printf '[package]\nname = "fixture-envelope"\nversion = "0.0.0"\n\n[dependencies]\ngmcrypto-core = { version = "1.11", features = ["x509"] }\n' \
+        >"$1/Cargo.toml"
+}
+write_envelope_manifest "$envelope"
 for target in alpha beta release_documents; do
     printf '// %s\n' "$target" >"$envelope/tests/$target.rs"
 done
 
-printf '[package]\nname = "gmcrypto-core"\nversion = "0.0.0"\n' \
-    >"$core/crates/gmcrypto-core/Cargo.toml"
-printf '[package]\nname = "gmcrypto-simd"\nversion = "0.0.0"\n' \
-    >"$core/crates/gmcrypto-simd/Cargo.toml"
+write_core_workspace() {
+    printf '[workspace]\nmembers = ["crates/gmcrypto-core", "crates/gmcrypto-simd"]\n\n[workspace.package]\nversion = "%s"\n' \
+        "$2" >"$1/Cargo.toml"
+    printf '[package]\nname = "gmcrypto-core"\nversion.workspace = true\n' \
+        >"$1/crates/gmcrypto-core/Cargo.toml"
+    printf '[package]\nname = "gmcrypto-simd"\nversion.workspace = true\n' \
+        >"$1/crates/gmcrypto-simd/Cargo.toml"
+}
+write_core_workspace "$core" 1.11.0
 
 init_repository() {
     git -C "$1" init --quiet
@@ -213,6 +222,41 @@ test "$(count_matching "$FAKE_GATE_LOG" 'boundary --worktree .')" -eq 2 || \
     fail "the boundary scan must run in both phases"
 test "$(count_matching "$FAKE_GATE_LOG" 'inventory')" -eq 1 || \
     fail "the cryptographic inventory must run once, before the patch"
+
+# The temporary copy is pinned to the exact candidate so the override resolves
+# whatever the declared range is, and both values reach the evidence.
+contains "$evidence" 'Declared downstream requirement `1.11`; candidate version `1.11.0`'
+contains "$evidence" 'pinned to `=1.11.0`'
+# The real checkout must never be touched.
+contains "$envelope/Cargo.toml" 'gmcrypto-core = { version = "1.11", features = ["x509"] }'
+lacks "$envelope/Cargo.toml" '[patch.crates-io]'
+
+# --- a candidate outside the declared requirement ---------------------------
+
+# A major-version candidate does not satisfy the caret requirement. Without the
+# temporary pin the override fails to resolve and the candidate is never tested,
+# which is the gap ECOSYSTEM section 8 covers by allowing the gate copy -- and
+# only the gate copy -- to change that requirement.
+core_next_major="$fixture/core-2x"
+mkdir -p "$core_next_major/crates/gmcrypto-core" "$core_next_major/crates/gmcrypto-simd"
+write_core_workspace "$core_next_major" 2.0.0
+init_repository "$core_next_major"
+
+expect_exit 0 "major-version candidate outside the caret" \
+    run_gate "$core_next_major" "$outside/major.md"
+contains "$outside/major.md" 'Declared downstream requirement `1.11`; candidate version `2.0.0`'
+contains "$outside/major.md" 'pinned to `=2.0.0`'
+contains "$outside/major.md" "**Result: PASS**"
+contains "$envelope/Cargo.toml" 'gmcrypto-core = { version = "1.11", features = ["x509"] }'
+
+# An unreadable candidate version must fail closed rather than guess.
+core_unversioned="$fixture/core-unversioned"
+cp -R "$core" "$core_unversioned"
+printf '[workspace]\nmembers = ["crates/gmcrypto-core"]\n' >"$core_unversioned/Cargo.toml"
+git -C "$core_unversioned" add -A
+git -C "$core_unversioned" -c commit.gpgsign=false commit --quiet -m "drop workspace version"
+expect_exit 1 "candidate workspace version missing" run_gate "$core_unversioned"
+contains "$run_log" "could not read the candidate core workspace version"
 
 # --- fail-closed behaviour --------------------------------------------------
 

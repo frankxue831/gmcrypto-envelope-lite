@@ -11,9 +11,10 @@ set -eu
 #   phase 2  candidate injected through a [patch.crates-io] path override
 #
 # Both phases run in every feature configuration the crate ships. The `aead`
-# feature enables gmcrypto-core/sm4-aead and pulls gmcrypto-simd and
-# cpufeatures into the compiled graph, so a default-features-only gate cannot
-# see that path at all.
+# feature enables gmcrypto-core/sm4-aead, which is defined as
+# ["dep:gmcrypto-simd"] and so pulls gmcrypto-simd -- and, on x86_64 and
+# aarch64, its target-gated cpufeatures detection dependency -- into the
+# compiled graph. A default-features-only gate cannot see that path at all.
 #
 # The override path is relative by construction. An absolute path embeds a
 # developer home directory into Cargo.toml, which the boundary scanner exists
@@ -106,7 +107,7 @@ git -C "$core_root" archive --format=tar -o "$gate_dir/core.tar" HEAD || \
 tar -xf "$gate_dir/core.tar" -C "$gate_dir/core" || fail "could not unpack the core export"
 rm -f "$gate_dir/core.tar"
 
-for required_member in crates/gmcrypto-core/Cargo.toml crates/gmcrypto-simd/Cargo.toml; do
+for required_member in Cargo.toml crates/gmcrypto-core/Cargo.toml crates/gmcrypto-simd/Cargo.toml; do
     test -f "$gate_dir/core/$required_member" || \
         fail "core export is missing $required_member"
 done
@@ -207,6 +208,38 @@ note 'Neither pre-patch assertion was weakened. The cryptographic inventory vali
 
 echo "phase 2 — candidate injected" >&2
 
+# A `[patch]` override only resolves if the patched version still satisfies the
+# downstream requirement. A major-version candidate against a caret requirement
+# does not, and Cargo then fails to resolve rather than testing the candidate --
+# so the charter says to adjust the requirement in the temporary gate copy only.
+# Pinning the disposable copy to the exact candidate does that unconditionally,
+# with no version-range arithmetic to get wrong. The real checkout is untouched;
+# both values go into the evidence so a range mismatch is visible at a glance.
+candidate_version=$(awk '
+    /^\[workspace\.package\][[:space:]]*$/ { in_section = 1; next }
+    /^\[/ { in_section = 0 }
+    in_section && /^[[:space:]]*version[[:space:]]*=/ {
+        line = $0
+        sub(/^[[:space:]]*version[[:space:]]*=[[:space:]]*"/, "", line)
+        sub(/".*$/, "", line)
+        print line
+        found += 1
+    }
+    END { if (found != 1) exit 2 }
+' "$gate_dir/core/Cargo.toml") || fail "could not read the candidate core workspace version"
+
+declared_requirement=$(sed -n 's/^gmcrypto-core = { version = "\([^"]*\)".*/\1/p' Cargo.toml)
+test -n "$declared_requirement" || fail "could not read the declared gmcrypto-core requirement"
+
+sed 's/^gmcrypto-core = { version = "[^"]*"/gmcrypto-core = { version = "='"$candidate_version"'"/' \
+    Cargo.toml >Cargo.toml.gate || fail "could not rewrite the temporary requirement"
+mv Cargo.toml.gate Cargo.toml
+grep -F "gmcrypto-core = { version = \"=$candidate_version\"" Cargo.toml >/dev/null || \
+    fail "the temporary requirement pin did not apply"
+
+printf '\nDeclared downstream requirement `%s`; candidate version `%s`. The disposable copy was pinned to `=%s` so the override resolves regardless of the declared range — the real downstream checkout is untouched. If the candidate falls outside the declared requirement, that requirement must be bumped downstream before the candidate ships.\n' \
+    "$declared_requirement" "$candidate_version" "$candidate_version" >>"$evidence_rows"
+
 cat >>Cargo.toml <<'PATCH_BLOCK'
 
 [patch.crates-io]
@@ -265,9 +298,10 @@ if test -n "$evidence_file"; then
         printf '\nRun in a disposable export outside both checkouts. Neither repository is\n'
         printf 'modified: the pin edit and the `[patch]` block exist only in the export.\n\n'
         printf 'Feature configurations covered: `default` and `--features aead`. The `aead`\n'
-        printf 'configuration compiles `gmcrypto-core/sm4-aead` and pulls `gmcrypto-simd`\n'
-        printf 'and `cpufeatures` into the graph, so it exercises core surface the default\n'
-        printf 'build never reaches.\n'
+        printf 'configuration compiles `gmcrypto-core/sm4-aead`, which pulls `gmcrypto-simd`\n'
+        printf '(and, on x86_64 and aarch64, its target-gated `cpufeatures` detection\n'
+        printf 'dependency) into the graph, so it exercises core surface the default build\n'
+        printf 'never reaches.\n'
         cat "$evidence_rows"
         printf '\n## Verdict\n\nPASS — no runtime or API incompatibility. No migration note is required\nbefore this core release ships.\n'
     } >"$evidence_file" || fail "could not write the evidence file"
