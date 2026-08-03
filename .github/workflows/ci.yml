@@ -72,6 +72,12 @@ jobs:
       - name: Verify workflow checker version
         run: case "$(actionlint -version | sed -n '1p')" in 1.7.12|v1.7.12) ;; *) actionlint -version; exit 1 ;; esac
       - run: cargo fmt --all -- --check
+      # `fuzz/` declares its own [workspace], so the check above never reaches
+      # it -- `--all` means every member of the root workspace, not every
+      # workspace in the tree. Formatting drifted there unnoticed until this
+      # step existed.
+      - name: Verify fuzz workspace formatting
+        run: cargo fmt --manifest-path fuzz/Cargo.toml --all -- --check
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo clippy --all-targets --locked --features aead -- -D warnings
       - run: cargo test --doc --locked

@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- CI now format-checks the fuzz workspace. `cargo fmt --all -- --check` means every member of the *root* workspace, and `fuzz/` declares its own `[workspace]`, so nothing had ever checked it — two files had drifted unnoticed. Reintroducing that exact drift passes the root check and fails the new one.
 - Restored the release-document suite's CRLF-normalization regression test, dropped when the 0.1.0 release-candidate export was imported. The normalization itself survived the import, but nothing pinned it any more: with it removed, 12 of the 13 assertions still pass on macOS and Linux, so the loss would have surfaced only on Windows CI — and the 0.1.0 changelog already claims the behaviour as a fix. The read path is now a named `read_normalized`, exercised against a CRLF fixture and against a lone carriage return, which it must leave intact. Found by comparing the compatibility gate's per-target counts against the counts recorded for the hand-run 1.11.0 gate.
 
 ### Changed
