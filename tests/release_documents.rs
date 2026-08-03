@@ -11,11 +11,14 @@ const HOSTED_REPOSITORY_NAME_GATE: &str = "- [ ] Hosted GitHub repository is nam
 const CARGO_REPOSITORY_METADATA_GATE: &str = "- [ ] Cargo `repository` metadata resolves to the authorized hosted repository before publication.";
 const RELEASE_OWNER_AUTHORIZATION_GATE: &str = "- [ ] Authorized release owner confirmed that the reviewed commit and checksums are unchanged.";
 
-fn repository_file(path: &str) -> String {
-    let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(path);
-    fs::read_to_string(&full_path)
+fn read_normalized(full_path: &Path) -> String {
+    fs::read_to_string(full_path)
         .unwrap_or_else(|error| panic!("unable to read {}: {error}", full_path.display()))
         .replace("\r\n", "\n")
+}
+
+fn repository_file(path: &str) -> String {
+    read_normalized(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(path))
 }
 
 fn assert_markers(document: &str, markers: &[&str]) {
@@ -183,6 +186,36 @@ fn completed_approval_marker(document: &str) -> Option<&'static str> {
     ]
     .into_iter()
     .find(|marker| lowercase.contains(marker))
+}
+
+#[test]
+fn repository_reads_normalize_windows_line_endings() {
+    let directory = TemporaryDirectory::new("line-endings");
+
+    // Every marker in this file is authored with LF. A Windows checkout with
+    // autocrlf conversion hands the same bytes back as CRLF, so without this
+    // normalization each multi-line assertion below fails on Windows alone.
+    let windows_checkout = directory.path().join("manifest.toml");
+    fs::write(
+        &windows_checkout,
+        "name = \"gmcrypto-core\"\r\nversion = \"1.11.0\"\r\n",
+    )
+    .expect("unable to write the CRLF fixture");
+    let normalized = read_normalized(&windows_checkout);
+    assert_eq!(
+        normalized,
+        "name = \"gmcrypto-core\"\nversion = \"1.11.0\"\n"
+    );
+    assert_markers(
+        &normalized,
+        &["name = \"gmcrypto-core\"\nversion = \"1.11.0\""],
+    );
+
+    // Pairs only. Stripping every carriage return would silently rewrite file
+    // content that legitimately contains one.
+    let lone_carriage_return = directory.path().join("lone-cr.txt");
+    fs::write(&lone_carriage_return, "before\rafter").expect("unable to write the lone-CR fixture");
+    assert_eq!(read_normalized(&lone_carriage_return), "before\rafter");
 }
 
 #[test]
