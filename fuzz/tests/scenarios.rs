@@ -8,11 +8,16 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use gmcrypto_envelope_lite::{Error, ProtocolAdapter, RequestParts, ResponseParts};
 
+use support::ScenarioOutcome::{Accepted, Rejected};
+
 const FULL_VALID_OPEN: &[u8] = include_bytes!("../corpus/encoded_envelope/full_valid_open");
 const AEAD_FULL_VALID: &[u8] = include_bytes!("../corpus/aead_envelope/full_valid_open");
 const RAW_MALFORMED: &[u8] = include_bytes!("../corpus/encoded_envelope/raw_malformed");
 const TRANSPORT_SUCCESS: &[u8] = include_bytes!("../corpus/transport_parts/success");
 const TYPED_VALID: &[u8] = include_bytes!("../corpus/typed_headers/valid_request");
+const TRANSPORT_CRLF: &[u8] =
+    include_bytes!("../corpus/transport_parts/generic_value_crlf_injection");
+const TYPED_CRLF: &[u8] = include_bytes!("../corpus/typed_headers/generic_value_crlf_injection");
 
 const ENCODED_CASES: &[(&str, &[u8])] = &[
     (
@@ -195,6 +200,202 @@ const TYPED_CASES: &[(
     ),
 ];
 
+// Seeds for the `Generic` arm, which the tables above cannot express: its
+// `expected_outcome` is `None` by construction, because the shape is built from
+// the seed rather than fixed in `support`. Each seed instead declares the
+// outcome the adapter must reach for the headers that seed builds.
+const TRANSPORT_GENERIC_CASES: &[(&str, &[u8], support::ScenarioOutcome)] = &[
+    (
+        "generic_canonical",
+        include_bytes!("../corpus/transport_parts/generic_canonical"),
+        Accepted,
+    ),
+    (
+        "generic_empty_names",
+        include_bytes!("../corpus/transport_parts/generic_empty_names"),
+        Rejected,
+    ),
+    // Rejected, unlike the typed side: a schema-required response header runs
+    // through `trimmed_nonempty`, so an empty value is a missing field. Nothing
+    // requires a particular header when building `RequestParts`, so the typed
+    // seed of the same name is accepted.
+    (
+        "generic_empty_values",
+        include_bytes!("../corpus/transport_parts/generic_empty_values"),
+        Rejected,
+    ),
+    (
+        "generic_exact_duplicate",
+        include_bytes!("../corpus/transport_parts/generic_exact_duplicate"),
+        Rejected,
+    ),
+    (
+        "generic_lowercase_names",
+        include_bytes!("../corpus/transport_parts/generic_lowercase_names"),
+        Accepted,
+    ),
+    (
+        "generic_lowercased_duplicate",
+        include_bytes!("../corpus/transport_parts/generic_lowercased_duplicate"),
+        Rejected,
+    ),
+    (
+        "generic_mixed_case_names",
+        include_bytes!("../corpus/transport_parts/generic_mixed_case_names"),
+        Accepted,
+    ),
+    (
+        "generic_name_collision_signature",
+        include_bytes!("../corpus/transport_parts/generic_name_collision_signature"),
+        Rejected,
+    ),
+    (
+        "generic_raw_name_empty",
+        include_bytes!("../corpus/transport_parts/generic_raw_name_empty"),
+        Rejected,
+    ),
+    (
+        "generic_raw_name_non_ascii",
+        include_bytes!("../corpus/transport_parts/generic_raw_name_non_ascii"),
+        Rejected,
+    ),
+    (
+        "generic_raw_name_token_punctuation",
+        include_bytes!("../corpus/transport_parts/generic_raw_name_token_punctuation"),
+        Rejected,
+    ),
+    (
+        "generic_raw_name_with_colon",
+        include_bytes!("../corpus/transport_parts/generic_raw_name_with_colon"),
+        Rejected,
+    ),
+    (
+        "generic_raw_name_with_space",
+        include_bytes!("../corpus/transport_parts/generic_raw_name_with_space"),
+        Rejected,
+    ),
+    (
+        "generic_reversed_order",
+        include_bytes!("../corpus/transport_parts/generic_reversed_order"),
+        Accepted,
+    ),
+    (
+        "generic_unknown_names",
+        include_bytes!("../corpus/transport_parts/generic_unknown_names"),
+        Rejected,
+    ),
+    ("generic_value_crlf_injection", TRANSPORT_CRLF, Rejected),
+    (
+        "generic_value_delete",
+        include_bytes!("../corpus/transport_parts/generic_value_delete"),
+        Rejected,
+    ),
+    (
+        "generic_value_nul",
+        include_bytes!("../corpus/transport_parts/generic_value_nul"),
+        Rejected,
+    ),
+    (
+        "generic_value_tab",
+        include_bytes!("../corpus/transport_parts/generic_value_tab"),
+        Accepted,
+    ),
+    (
+        "generic_value_unit_separator",
+        include_bytes!("../corpus/transport_parts/generic_value_unit_separator"),
+        Rejected,
+    ),
+];
+
+const TYPED_GENERIC_CASES: &[(&str, &[u8], support::ScenarioOutcome)] = &[
+    (
+        "generic_canonical",
+        include_bytes!("../corpus/typed_headers/generic_canonical"),
+        Accepted,
+    ),
+    (
+        "generic_case_collision",
+        include_bytes!("../corpus/typed_headers/generic_case_collision"),
+        Rejected,
+    ),
+    (
+        "generic_empty_names",
+        include_bytes!("../corpus/typed_headers/generic_empty_names"),
+        Rejected,
+    ),
+    (
+        "generic_empty_values",
+        include_bytes!("../corpus/typed_headers/generic_empty_values"),
+        Accepted,
+    ),
+    (
+        "generic_exact_duplicate",
+        include_bytes!("../corpus/typed_headers/generic_exact_duplicate"),
+        Rejected,
+    ),
+    (
+        "generic_lowercase_names",
+        include_bytes!("../corpus/typed_headers/generic_lowercase_names"),
+        Accepted,
+    ),
+    (
+        "generic_lowercased_duplicate",
+        include_bytes!("../corpus/typed_headers/generic_lowercased_duplicate"),
+        Rejected,
+    ),
+    (
+        "generic_mixed_case_names",
+        include_bytes!("../corpus/typed_headers/generic_mixed_case_names"),
+        Accepted,
+    ),
+    (
+        "generic_raw_name_non_ascii",
+        include_bytes!("../corpus/typed_headers/generic_raw_name_non_ascii"),
+        Rejected,
+    ),
+    (
+        "generic_raw_name_token_punctuation",
+        include_bytes!("../corpus/typed_headers/generic_raw_name_token_punctuation"),
+        Accepted,
+    ),
+    (
+        "generic_raw_name_with_colon",
+        include_bytes!("../corpus/typed_headers/generic_raw_name_with_colon"),
+        Rejected,
+    ),
+    (
+        "generic_raw_name_with_space",
+        include_bytes!("../corpus/typed_headers/generic_raw_name_with_space"),
+        Rejected,
+    ),
+    (
+        "generic_swapped_names_and_values",
+        include_bytes!("../corpus/typed_headers/generic_swapped_names_and_values"),
+        Accepted,
+    ),
+    ("generic_value_crlf_injection", TYPED_CRLF, Rejected),
+    (
+        "generic_value_delete",
+        include_bytes!("../corpus/typed_headers/generic_value_delete"),
+        Rejected,
+    ),
+    (
+        "generic_value_nul",
+        include_bytes!("../corpus/typed_headers/generic_value_nul"),
+        Rejected,
+    ),
+    (
+        "generic_value_tab",
+        include_bytes!("../corpus/typed_headers/generic_value_tab"),
+        Accepted,
+    ),
+    (
+        "generic_value_unit_separator",
+        include_bytes!("../corpus/typed_headers/generic_value_unit_separator"),
+        Rejected,
+    ),
+];
+
 #[test]
 fn every_tracked_seed_has_a_contract_case() {
     assert_corpus_names("aead_envelope", AEAD_CASES.iter().map(|(name, _)| *name));
@@ -204,9 +405,80 @@ fn every_tracked_seed_has_a_contract_case() {
     );
     assert_corpus_names(
         "transport_parts",
-        TRANSPORT_CASES.iter().map(|(name, ..)| *name),
+        TRANSPORT_CASES
+            .iter()
+            .map(|(name, ..)| *name)
+            .chain(TRANSPORT_GENERIC_CASES.iter().map(|(name, ..)| *name)),
     );
-    assert_corpus_names("typed_headers", TYPED_CASES.iter().map(|(name, ..)| *name));
+    assert_corpus_names(
+        "typed_headers",
+        TYPED_CASES
+            .iter()
+            .map(|(name, ..)| *name)
+            .chain(TYPED_GENERIC_CASES.iter().map(|(name, ..)| *name)),
+    );
+}
+
+#[test]
+fn crlf_injection_seeds_still_carry_a_carriage_return() {
+    // Git rewrites CRLF to LF on commit unless the path is marked `-text`, which
+    // `.gitattributes` does for the corpus. Nothing else here would notice: the
+    // seeds keep their names and their declared outcomes, because a lone LF is
+    // rejected exactly like CRLF. The length prefix is checked too, since a
+    // stripped CR leaves it describing one more byte than the value holds.
+    for (target, seed, prefix, length) in [
+        ("transport_parts", TRANSPORT_CRLF, &b"|21:"[..], 21),
+        ("typed_headers", TYPED_CRLF, &b"|24:"[..], 24),
+    ] {
+        assert!(
+            seed.windows(2).any(|pair| pair == b"\r\n"),
+            "{target}: CRLF seed carries no carriage return; check .gitattributes"
+        );
+        let start = seed
+            .windows(prefix.len())
+            .position(|window| window == prefix)
+            .unwrap_or_else(|| panic!("{target}: declared CRLF field is missing"))
+            + prefix.len();
+        assert!(
+            seed[start..start + length]
+                .windows(2)
+                .any(|pair| pair == b"\r\n"),
+            "{target}: the declared field length no longer spans the carriage return"
+        );
+    }
+}
+
+#[test]
+fn curated_generic_transport_seeds_reach_named_adapter_outcomes() {
+    for (name, seed, expected) in TRANSPORT_GENERIC_CASES {
+        assert_eq!(
+            support::transport_scenario(seed),
+            support::TransportScenario::Generic,
+            "{name}"
+        );
+        let outcome =
+            match support::adapter().parse_response(support::generic_transport_parts(seed)) {
+                Ok(_) => Accepted,
+                Err(_) => Rejected,
+            };
+        assert_eq!(outcome, *expected, "{name}");
+    }
+}
+
+#[test]
+fn curated_generic_typed_seeds_reach_named_construction_outcomes() {
+    for (name, seed, expected) in TYPED_GENERIC_CASES {
+        assert_eq!(
+            support::typed_scenario(seed),
+            support::TypedScenario::Generic,
+            "{name}"
+        );
+        let outcome = match support::generic_typed_parts(seed) {
+            Ok(_) => Accepted,
+            Err(_) => Rejected,
+        };
+        assert_eq!(outcome, *expected, "{name}");
+    }
 }
 
 #[test]
