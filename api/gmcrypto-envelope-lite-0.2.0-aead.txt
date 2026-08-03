@@ -1,0 +1,436 @@
+pub mod gmcrypto_envelope_lite
+#[non_exhaustive] pub enum gmcrypto_envelope_lite::AdapterErrorKind
+pub gmcrypto_envelope_lite::AdapterErrorKind::DuplicateField
+pub gmcrypto_envelope_lite::AdapterErrorKind::InvalidField
+pub gmcrypto_envelope_lite::AdapterErrorKind::InvalidMapping
+pub gmcrypto_envelope_lite::AdapterErrorKind::MissingField
+impl core::clone::Clone for gmcrypto_envelope_lite::AdapterErrorKind
+pub fn gmcrypto_envelope_lite::AdapterErrorKind::clone(&self) -> gmcrypto_envelope_lite::AdapterErrorKind
+impl core::cmp::Eq for gmcrypto_envelope_lite::AdapterErrorKind
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::AdapterErrorKind
+pub fn gmcrypto_envelope_lite::AdapterErrorKind::eq(&self, &gmcrypto_envelope_lite::AdapterErrorKind) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::AdapterErrorKind
+pub fn gmcrypto_envelope_lite::AdapterErrorKind::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for gmcrypto_envelope_lite::AdapterErrorKind
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::AdapterErrorKind
+#[non_exhaustive] pub enum gmcrypto_envelope_lite::AeadAlgorithm
+pub gmcrypto_envelope_lite::AeadAlgorithm::Sm4Gcm
+impl core::clone::Clone for gmcrypto_envelope_lite::AeadAlgorithm
+pub fn gmcrypto_envelope_lite::AeadAlgorithm::clone(&self) -> gmcrypto_envelope_lite::AeadAlgorithm
+impl core::cmp::Eq for gmcrypto_envelope_lite::AeadAlgorithm
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::AeadAlgorithm
+pub fn gmcrypto_envelope_lite::AeadAlgorithm::eq(&self, &gmcrypto_envelope_lite::AeadAlgorithm) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::AeadAlgorithm
+pub fn gmcrypto_envelope_lite::AeadAlgorithm::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for gmcrypto_envelope_lite::AeadAlgorithm
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::AeadAlgorithm
+#[non_exhaustive] pub enum gmcrypto_envelope_lite::AuthenticationMode
+pub gmcrypto_envelope_lite::AuthenticationMode::ContextBound
+pub gmcrypto_envelope_lite::AuthenticationMode::ContextBound::domain_separator: alloc::vec::Vec<u8>
+pub gmcrypto_envelope_lite::AuthenticationMode::LegacyPlaintext
+impl gmcrypto_envelope_lite::AuthenticationMode
+pub fn gmcrypto_envelope_lite::AuthenticationMode::aead_aad(&self, &gmcrypto_envelope_lite::AuthenticationContext, &[u8; 14]) -> gmcrypto_envelope_lite::Result<alloc::vec::Vec<u8>>
+pub fn gmcrypto_envelope_lite::AuthenticationMode::authentication_input(&self, &gmcrypto_envelope_lite::AuthenticationContext, &[u8]) -> gmcrypto_envelope_lite::Result<zeroize::Zeroizing<alloc::vec::Vec<u8>>>
+pub fn gmcrypto_envelope_lite::AuthenticationMode::context_bound(impl core::convert::Into<alloc::vec::Vec<u8>>) -> gmcrypto_envelope_lite::Result<Self>
+impl core::clone::Clone for gmcrypto_envelope_lite::AuthenticationMode
+pub fn gmcrypto_envelope_lite::AuthenticationMode::clone(&self) -> gmcrypto_envelope_lite::AuthenticationMode
+impl core::cmp::Eq for gmcrypto_envelope_lite::AuthenticationMode
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::AuthenticationMode
+pub fn gmcrypto_envelope_lite::AuthenticationMode::eq(&self, &gmcrypto_envelope_lite::AuthenticationMode) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::AuthenticationMode
+pub fn gmcrypto_envelope_lite::AuthenticationMode::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::AuthenticationMode
+pub enum gmcrypto_envelope_lite::CipherLocation
+pub gmcrypto_envelope_lite::CipherLocation::Body
+pub gmcrypto_envelope_lite::CipherLocation::Header(gmcrypto_envelope_lite::HeaderName)
+impl core::clone::Clone for gmcrypto_envelope_lite::CipherLocation
+pub fn gmcrypto_envelope_lite::CipherLocation::clone(&self) -> gmcrypto_envelope_lite::CipherLocation
+impl core::cmp::Eq for gmcrypto_envelope_lite::CipherLocation
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::CipherLocation
+pub fn gmcrypto_envelope_lite::CipherLocation::eq(&self, &gmcrypto_envelope_lite::CipherLocation) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::CipherLocation
+pub fn gmcrypto_envelope_lite::CipherLocation::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::CipherLocation
+#[non_exhaustive] pub enum gmcrypto_envelope_lite::EnvelopeMode
+pub gmcrypto_envelope_lite::EnvelopeMode::Aead(gmcrypto_envelope_lite::AeadAlgorithm)
+pub gmcrypto_envelope_lite::EnvelopeMode::LegacyCbc
+impl core::clone::Clone for gmcrypto_envelope_lite::EnvelopeMode
+pub fn gmcrypto_envelope_lite::EnvelopeMode::clone(&self) -> gmcrypto_envelope_lite::EnvelopeMode
+impl core::cmp::Eq for gmcrypto_envelope_lite::EnvelopeMode
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::EnvelopeMode
+pub fn gmcrypto_envelope_lite::EnvelopeMode::eq(&self, &gmcrypto_envelope_lite::EnvelopeMode) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::EnvelopeMode
+pub fn gmcrypto_envelope_lite::EnvelopeMode::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for gmcrypto_envelope_lite::EnvelopeMode
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::EnvelopeMode
+#[non_exhaustive] pub enum gmcrypto_envelope_lite::Error
+pub gmcrypto_envelope_lite::Error::AuthenticationContext
+pub gmcrypto_envelope_lite::Error::Configuration
+pub gmcrypto_envelope_lite::Error::Configuration::field: &'static str
+pub gmcrypto_envelope_lite::Error::Encryption
+pub gmcrypto_envelope_lite::Error::HeaderConflict
+pub gmcrypto_envelope_lite::Error::InvalidEnvelope
+pub gmcrypto_envelope_lite::Error::InvalidHeader
+pub gmcrypto_envelope_lite::Error::Io
+pub gmcrypto_envelope_lite::Error::Io::operation: &'static str
+pub gmcrypto_envelope_lite::Error::Io::path: std::path::PathBuf
+pub gmcrypto_envelope_lite::Error::Io::source: std::io::error::Error
+pub gmcrypto_envelope_lite::Error::KeyMaterial
+pub gmcrypto_envelope_lite::Error::KeyMaterial::kind: gmcrypto_envelope_lite::KeyKind
+pub gmcrypto_envelope_lite::Error::MessageTooLarge
+pub gmcrypto_envelope_lite::Error::MessageTooLarge::limit: usize
+pub gmcrypto_envelope_lite::Error::ProtocolAdapter
+pub gmcrypto_envelope_lite::Error::Serialization
+impl core::error::Error for gmcrypto_envelope_lite::Error
+pub fn gmcrypto_envelope_lite::Error::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for gmcrypto_envelope_lite::Error
+pub fn gmcrypto_envelope_lite::Error::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for gmcrypto_envelope_lite::Error
+pub fn gmcrypto_envelope_lite::Error::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+#[non_exhaustive] pub enum gmcrypto_envelope_lite::KeyKind
+pub gmcrypto_envelope_lite::KeyKind::LocalPrivate
+pub gmcrypto_envelope_lite::KeyKind::PeerPublic
+impl core::clone::Clone for gmcrypto_envelope_lite::KeyKind
+pub fn gmcrypto_envelope_lite::KeyKind::clone(&self) -> gmcrypto_envelope_lite::KeyKind
+impl core::cmp::Eq for gmcrypto_envelope_lite::KeyKind
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::KeyKind
+pub fn gmcrypto_envelope_lite::KeyKind::eq(&self, &gmcrypto_envelope_lite::KeyKind) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::KeyKind
+pub fn gmcrypto_envelope_lite::KeyKind::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for gmcrypto_envelope_lite::KeyKind
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::KeyKind
+#[non_exhaustive] pub enum gmcrypto_envelope_lite::PeerKeySource
+pub gmcrypto_envelope_lite::PeerKeySource::Certificate
+pub gmcrypto_envelope_lite::PeerKeySource::Spki
+impl core::clone::Clone for gmcrypto_envelope_lite::PeerKeySource
+pub fn gmcrypto_envelope_lite::PeerKeySource::clone(&self) -> gmcrypto_envelope_lite::PeerKeySource
+impl core::cmp::Eq for gmcrypto_envelope_lite::PeerKeySource
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::PeerKeySource
+pub fn gmcrypto_envelope_lite::PeerKeySource::eq(&self, &gmcrypto_envelope_lite::PeerKeySource) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::PeerKeySource
+pub fn gmcrypto_envelope_lite::PeerKeySource::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for gmcrypto_envelope_lite::PeerKeySource
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::PeerKeySource
+pub struct gmcrypto_envelope_lite::AdapterError
+impl gmcrypto_envelope_lite::AdapterError
+pub const fn gmcrypto_envelope_lite::AdapterError::kind(self) -> gmcrypto_envelope_lite::AdapterErrorKind
+pub const fn gmcrypto_envelope_lite::AdapterError::new(gmcrypto_envelope_lite::AdapterErrorKind) -> Self
+impl core::clone::Clone for gmcrypto_envelope_lite::AdapterError
+pub fn gmcrypto_envelope_lite::AdapterError::clone(&self) -> gmcrypto_envelope_lite::AdapterError
+impl core::cmp::Eq for gmcrypto_envelope_lite::AdapterError
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::AdapterError
+pub fn gmcrypto_envelope_lite::AdapterError::eq(&self, &gmcrypto_envelope_lite::AdapterError) -> bool
+impl core::error::Error for gmcrypto_envelope_lite::AdapterError
+impl core::fmt::Debug for gmcrypto_envelope_lite::AdapterError
+pub fn gmcrypto_envelope_lite::AdapterError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for gmcrypto_envelope_lite::AdapterError
+pub fn gmcrypto_envelope_lite::AdapterError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for gmcrypto_envelope_lite::AdapterError
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::AdapterError
+pub struct gmcrypto_envelope_lite::AuthenticationContext
+impl gmcrypto_envelope_lite::AuthenticationContext
+pub fn gmcrypto_envelope_lite::AuthenticationContext::context_bound(impl core::convert::Into<alloc::vec::Vec<u8>>) -> gmcrypto_envelope_lite::Result<Self>
+pub fn gmcrypto_envelope_lite::AuthenticationContext::legacy() -> Self
+impl core::clone::Clone for gmcrypto_envelope_lite::AuthenticationContext
+pub fn gmcrypto_envelope_lite::AuthenticationContext::clone(&self) -> gmcrypto_envelope_lite::AuthenticationContext
+impl core::cmp::Eq for gmcrypto_envelope_lite::AuthenticationContext
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::AuthenticationContext
+pub fn gmcrypto_envelope_lite::AuthenticationContext::eq(&self, &gmcrypto_envelope_lite::AuthenticationContext) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::AuthenticationContext
+pub fn gmcrypto_envelope_lite::AuthenticationContext::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::AuthenticationContext
+pub struct gmcrypto_envelope_lite::ClientConfig
+impl gmcrypto_envelope_lite::ClientConfig
+pub fn gmcrypto_envelope_lite::ClientConfig::authentication_mode(&self) -> &gmcrypto_envelope_lite::AuthenticationMode
+pub fn gmcrypto_envelope_lite::ClientConfig::builder() -> gmcrypto_envelope_lite::ClientConfigBuilder
+pub fn gmcrypto_envelope_lite::ClientConfig::envelope_mode(&self) -> gmcrypto_envelope_lite::EnvelopeMode
+pub fn gmcrypto_envelope_lite::ClientConfig::expected_remote_signer_id(&self) -> &[u8]
+pub fn gmcrypto_envelope_lite::ClientConfig::identity(&self) -> &gmcrypto_envelope_lite::ClientIdentity
+pub fn gmcrypto_envelope_lite::ClientConfig::iv(&self) -> &[u8; 16]
+pub fn gmcrypto_envelope_lite::ClientConfig::local_signer_id(&self) -> &[u8]
+pub fn gmcrypto_envelope_lite::ClientConfig::max_plaintext_bytes(&self) -> usize
+impl core::clone::Clone for gmcrypto_envelope_lite::ClientConfig
+pub fn gmcrypto_envelope_lite::ClientConfig::clone(&self) -> gmcrypto_envelope_lite::ClientConfig
+impl core::cmp::Eq for gmcrypto_envelope_lite::ClientConfig
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::ClientConfig
+pub fn gmcrypto_envelope_lite::ClientConfig::eq(&self, &gmcrypto_envelope_lite::ClientConfig) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::ClientConfig
+pub fn gmcrypto_envelope_lite::ClientConfig::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::ClientConfig
+pub struct gmcrypto_envelope_lite::ClientConfigBuilder
+impl gmcrypto_envelope_lite::ClientConfigBuilder
+pub fn gmcrypto_envelope_lite::ClientConfigBuilder::api_version(self, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn gmcrypto_envelope_lite::ClientConfigBuilder::authentication_mode(self, gmcrypto_envelope_lite::AuthenticationMode) -> Self
+pub fn gmcrypto_envelope_lite::ClientConfigBuilder::build(self) -> gmcrypto_envelope_lite::Result<gmcrypto_envelope_lite::ClientConfig>
+pub fn gmcrypto_envelope_lite::ClientConfigBuilder::envelope_mode(self, gmcrypto_envelope_lite::EnvelopeMode) -> Self
+pub fn gmcrypto_envelope_lite::ClientConfigBuilder::expected_remote_signer_id(self, impl core::convert::Into<alloc::vec::Vec<u8>>) -> Self
+pub fn gmcrypto_envelope_lite::ClientConfigBuilder::expected_remote_signing_certificate_id(self, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn gmcrypto_envelope_lite::ClientConfigBuilder::iv(self, [u8; 16]) -> Self
+pub fn gmcrypto_envelope_lite::ClientConfigBuilder::local_certificate_id(self, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn gmcrypto_envelope_lite::ClientConfigBuilder::local_identity_id(self, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn gmcrypto_envelope_lite::ClientConfigBuilder::local_signer_id(self, impl core::convert::Into<alloc::vec::Vec<u8>>) -> Self
+pub fn gmcrypto_envelope_lite::ClientConfigBuilder::max_plaintext_bytes(self, usize) -> Self
+pub fn gmcrypto_envelope_lite::ClientConfigBuilder::remote_encryption_certificate_id(self, impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for gmcrypto_envelope_lite::ClientConfigBuilder
+pub fn gmcrypto_envelope_lite::ClientConfigBuilder::clone(&self) -> gmcrypto_envelope_lite::ClientConfigBuilder
+impl core::default::Default for gmcrypto_envelope_lite::ClientConfigBuilder
+pub fn gmcrypto_envelope_lite::ClientConfigBuilder::default() -> gmcrypto_envelope_lite::ClientConfigBuilder
+impl core::fmt::Debug for gmcrypto_envelope_lite::ClientConfigBuilder
+pub fn gmcrypto_envelope_lite::ClientConfigBuilder::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub struct gmcrypto_envelope_lite::ClientIdentity
+impl gmcrypto_envelope_lite::ClientIdentity
+pub fn gmcrypto_envelope_lite::ClientIdentity::api_version(&self) -> &str
+pub fn gmcrypto_envelope_lite::ClientIdentity::expected_remote_signing_certificate_id(&self) -> &str
+pub fn gmcrypto_envelope_lite::ClientIdentity::local_certificate_id(&self) -> &str
+pub fn gmcrypto_envelope_lite::ClientIdentity::local_identity_id(&self) -> &str
+pub fn gmcrypto_envelope_lite::ClientIdentity::new(impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>) -> gmcrypto_envelope_lite::Result<Self>
+pub fn gmcrypto_envelope_lite::ClientIdentity::remote_encryption_certificate_id(&self) -> &str
+impl core::clone::Clone for gmcrypto_envelope_lite::ClientIdentity
+pub fn gmcrypto_envelope_lite::ClientIdentity::clone(&self) -> gmcrypto_envelope_lite::ClientIdentity
+impl core::cmp::Eq for gmcrypto_envelope_lite::ClientIdentity
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::ClientIdentity
+pub fn gmcrypto_envelope_lite::ClientIdentity::eq(&self, &gmcrypto_envelope_lite::ClientIdentity) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::ClientIdentity
+pub fn gmcrypto_envelope_lite::ClientIdentity::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::ClientIdentity
+pub struct gmcrypto_envelope_lite::HeaderName
+impl gmcrypto_envelope_lite::HeaderName
+pub fn gmcrypto_envelope_lite::HeaderName::as_str(&self) -> &str
+pub fn gmcrypto_envelope_lite::HeaderName::new(impl core::convert::Into<alloc::string::String>) -> gmcrypto_envelope_lite::Result<Self>
+impl core::clone::Clone for gmcrypto_envelope_lite::HeaderName
+pub fn gmcrypto_envelope_lite::HeaderName::clone(&self) -> gmcrypto_envelope_lite::HeaderName
+impl core::cmp::Eq for gmcrypto_envelope_lite::HeaderName
+impl core::cmp::Ord for gmcrypto_envelope_lite::HeaderName
+pub fn gmcrypto_envelope_lite::HeaderName::cmp(&self, &Self) -> core::cmp::Ordering
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::HeaderName
+pub fn gmcrypto_envelope_lite::HeaderName::eq(&self, &Self) -> bool
+impl core::cmp::PartialOrd for gmcrypto_envelope_lite::HeaderName
+pub fn gmcrypto_envelope_lite::HeaderName::partial_cmp(&self, &Self) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for gmcrypto_envelope_lite::HeaderName
+pub fn gmcrypto_envelope_lite::HeaderName::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for gmcrypto_envelope_lite::HeaderName
+pub fn gmcrypto_envelope_lite::HeaderName::hash<H: core::hash::Hasher>(&self, &mut H)
+pub struct gmcrypto_envelope_lite::HeaderProtocolAdapter
+impl gmcrypto_envelope_lite::HeaderProtocolAdapter
+pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::new(gmcrypto_envelope_lite::HeaderSchema) -> Self
+impl core::clone::Clone for gmcrypto_envelope_lite::HeaderProtocolAdapter
+pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::clone(&self) -> gmcrypto_envelope_lite::HeaderProtocolAdapter
+impl core::fmt::Debug for gmcrypto_envelope_lite::HeaderProtocolAdapter
+pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl gmcrypto_envelope_lite::ProtocolAdapter for gmcrypto_envelope_lite::HeaderProtocolAdapter
+pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::build_request(&self, &gmcrypto_envelope_lite::ClientIdentity, &gmcrypto_envelope_lite::ProtocolRequestContext, &gmcrypto_envelope_lite::SecureEnvelope) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::RequestParts>
+pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::parse_response(&self, gmcrypto_envelope_lite::ResponseParts) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::ParsedResponse>
+pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::request_authentication_context(&self, &gmcrypto_envelope_lite::ClientIdentity, &gmcrypto_envelope_lite::ProtocolRequestContext) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::AuthenticationContext>
+pub struct gmcrypto_envelope_lite::HeaderSchema
+impl gmcrypto_envelope_lite::HeaderSchema
+pub fn gmcrypto_envelope_lite::HeaderSchema::builder() -> gmcrypto_envelope_lite::HeaderSchemaBuilder
+impl core::clone::Clone for gmcrypto_envelope_lite::HeaderSchema
+pub fn gmcrypto_envelope_lite::HeaderSchema::clone(&self) -> gmcrypto_envelope_lite::HeaderSchema
+impl core::fmt::Debug for gmcrypto_envelope_lite::HeaderSchema
+pub fn gmcrypto_envelope_lite::HeaderSchema::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub struct gmcrypto_envelope_lite::HeaderSchemaBuilder
+impl gmcrypto_envelope_lite::HeaderSchemaBuilder
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::api_version_header(self, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::build(self) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::HeaderSchema>
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::legacy_authentication(self) -> Self
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::local_certificate_header(self, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::local_identity_header(self, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::operation_header(self, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::remote_encryption_certificate_header(self, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::remote_signing_certificate_header(self, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::request_cipher(self, gmcrypto_envelope_lite::CipherLocation) -> Self
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::request_id_header(self, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::request_signature_header(self, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::request_time_header(self, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::request_wrapped_key_header(self, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::response_cipher(self, gmcrypto_envelope_lite::CipherLocation) -> Self
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::response_remote_signing_certificate_header(self, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::response_signature_header(self, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::response_wrapped_key_header(self, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::static_request_header(self, impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for gmcrypto_envelope_lite::HeaderSchemaBuilder
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::clone(&self) -> gmcrypto_envelope_lite::HeaderSchemaBuilder
+impl core::default::Default for gmcrypto_envelope_lite::HeaderSchemaBuilder
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::default() -> gmcrypto_envelope_lite::HeaderSchemaBuilder
+impl core::fmt::Debug for gmcrypto_envelope_lite::HeaderSchemaBuilder
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub struct gmcrypto_envelope_lite::HeaderValue(_)
+impl gmcrypto_envelope_lite::HeaderValue
+pub fn gmcrypto_envelope_lite::HeaderValue::as_str(&self) -> &str
+pub fn gmcrypto_envelope_lite::HeaderValue::new(impl core::convert::Into<alloc::string::String>) -> gmcrypto_envelope_lite::Result<Self>
+impl core::clone::Clone for gmcrypto_envelope_lite::HeaderValue
+pub fn gmcrypto_envelope_lite::HeaderValue::clone(&self) -> gmcrypto_envelope_lite::HeaderValue
+impl core::cmp::Eq for gmcrypto_envelope_lite::HeaderValue
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::HeaderValue
+pub fn gmcrypto_envelope_lite::HeaderValue::eq(&self, &gmcrypto_envelope_lite::HeaderValue) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::HeaderValue
+pub fn gmcrypto_envelope_lite::HeaderValue::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::HeaderValue
+pub struct gmcrypto_envelope_lite::KeyMaterial
+impl gmcrypto_envelope_lite::KeyMaterial
+pub fn gmcrypto_envelope_lite::KeyMaterial::new(gmcrypto_envelope_lite::PrivateKey, gmcrypto_envelope_lite::PrivateKey, gmcrypto_envelope_lite::PublicKey, gmcrypto_envelope_lite::PublicKey) -> Self
+pub const fn gmcrypto_envelope_lite::KeyMaterial::remote_encryption_source(&self) -> gmcrypto_envelope_lite::PeerKeySource
+pub const fn gmcrypto_envelope_lite::KeyMaterial::remote_verification_source(&self) -> gmcrypto_envelope_lite::PeerKeySource
+pub fn gmcrypto_envelope_lite::KeyMaterial::shared(gmcrypto_envelope_lite::PrivateKey, gmcrypto_envelope_lite::PublicKey) -> Self
+pub fn gmcrypto_envelope_lite::KeyMaterial::shared_from_der(&[u8], &[u8], &[u8]) -> gmcrypto_envelope_lite::Result<Self>
+pub fn gmcrypto_envelope_lite::KeyMaterial::shared_from_files(impl core::convert::AsRef<std::path::Path>, &[u8], impl core::convert::AsRef<std::path::Path>) -> gmcrypto_envelope_lite::Result<Self>
+pub fn gmcrypto_envelope_lite::KeyMaterial::shared_from_pem(&[u8], &[u8], &[u8]) -> gmcrypto_envelope_lite::Result<Self>
+pub const fn gmcrypto_envelope_lite::KeyMaterial::uses_shared_roles(&self) -> bool
+pub struct gmcrypto_envelope_lite::ParsedResponse
+impl gmcrypto_envelope_lite::ParsedResponse
+pub fn gmcrypto_envelope_lite::ParsedResponse::authentication_context(&self) -> &gmcrypto_envelope_lite::AuthenticationContext
+pub fn gmcrypto_envelope_lite::ParsedResponse::envelope(&self) -> &gmcrypto_envelope_lite::SecureEnvelope
+pub fn gmcrypto_envelope_lite::ParsedResponse::into_parts(self) -> (gmcrypto_envelope_lite::SecureEnvelope, alloc::string::String, gmcrypto_envelope_lite::AuthenticationContext)
+pub fn gmcrypto_envelope_lite::ParsedResponse::new(gmcrypto_envelope_lite::SecureEnvelope, impl core::convert::Into<alloc::string::String>, gmcrypto_envelope_lite::AuthenticationContext) -> gmcrypto_envelope_lite::AdapterResult<Self>
+pub fn gmcrypto_envelope_lite::ParsedResponse::remote_signing_certificate_id(&self) -> &str
+impl core::clone::Clone for gmcrypto_envelope_lite::ParsedResponse
+pub fn gmcrypto_envelope_lite::ParsedResponse::clone(&self) -> gmcrypto_envelope_lite::ParsedResponse
+impl core::cmp::Eq for gmcrypto_envelope_lite::ParsedResponse
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::ParsedResponse
+pub fn gmcrypto_envelope_lite::ParsedResponse::eq(&self, &gmcrypto_envelope_lite::ParsedResponse) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::ParsedResponse
+pub fn gmcrypto_envelope_lite::ParsedResponse::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::ParsedResponse
+pub struct gmcrypto_envelope_lite::PrivateKey
+impl gmcrypto_envelope_lite::PrivateKey
+pub fn gmcrypto_envelope_lite::PrivateKey::from_encrypted_der(&[u8], &[u8]) -> gmcrypto_envelope_lite::Result<Self>
+pub fn gmcrypto_envelope_lite::PrivateKey::from_encrypted_file(impl core::convert::AsRef<std::path::Path>, &[u8]) -> gmcrypto_envelope_lite::Result<Self>
+pub fn gmcrypto_envelope_lite::PrivateKey::from_encrypted_pem(&[u8], &[u8]) -> gmcrypto_envelope_lite::Result<Self>
+pub struct gmcrypto_envelope_lite::ProtocolRequestContext
+impl gmcrypto_envelope_lite::ProtocolRequestContext
+pub fn gmcrypto_envelope_lite::ProtocolRequestContext::metadata(&self) -> &gmcrypto_envelope_lite::RequestMetadata
+pub fn gmcrypto_envelope_lite::ProtocolRequestContext::new(impl core::convert::Into<alloc::string::String>, gmcrypto_envelope_lite::RequestMetadata) -> gmcrypto_envelope_lite::Result<Self>
+pub fn gmcrypto_envelope_lite::ProtocolRequestContext::operation(&self) -> &str
+impl core::clone::Clone for gmcrypto_envelope_lite::ProtocolRequestContext
+pub fn gmcrypto_envelope_lite::ProtocolRequestContext::clone(&self) -> gmcrypto_envelope_lite::ProtocolRequestContext
+impl core::cmp::Eq for gmcrypto_envelope_lite::ProtocolRequestContext
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::ProtocolRequestContext
+pub fn gmcrypto_envelope_lite::ProtocolRequestContext::eq(&self, &gmcrypto_envelope_lite::ProtocolRequestContext) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::ProtocolRequestContext
+pub fn gmcrypto_envelope_lite::ProtocolRequestContext::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::ProtocolRequestContext
+pub struct gmcrypto_envelope_lite::PublicKey
+impl gmcrypto_envelope_lite::PublicKey
+pub fn gmcrypto_envelope_lite::PublicKey::from_der(&[u8]) -> gmcrypto_envelope_lite::Result<Self>
+pub fn gmcrypto_envelope_lite::PublicKey::from_file(impl core::convert::AsRef<std::path::Path>) -> gmcrypto_envelope_lite::Result<Self>
+pub fn gmcrypto_envelope_lite::PublicKey::from_pem(&[u8]) -> gmcrypto_envelope_lite::Result<Self>
+pub const fn gmcrypto_envelope_lite::PublicKey::source(&self) -> gmcrypto_envelope_lite::PeerKeySource
+impl core::clone::Clone for gmcrypto_envelope_lite::PublicKey
+pub fn gmcrypto_envelope_lite::PublicKey::clone(&self) -> gmcrypto_envelope_lite::PublicKey
+impl core::fmt::Debug for gmcrypto_envelope_lite::PublicKey
+pub fn gmcrypto_envelope_lite::PublicKey::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for gmcrypto_envelope_lite::PublicKey
+pub struct gmcrypto_envelope_lite::RequestBuilder<'a>
+impl<'a> gmcrypto_envelope_lite::RequestBuilder<'a>
+pub fn gmcrypto_envelope_lite::RequestBuilder<'a>::bytes(self, &[u8]) -> gmcrypto_envelope_lite::Result<gmcrypto_envelope_lite::RequestParts>
+pub fn gmcrypto_envelope_lite::RequestBuilder<'a>::header(self, impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>) -> gmcrypto_envelope_lite::Result<Self>
+pub fn gmcrypto_envelope_lite::RequestBuilder<'a>::json<T: serde_core::ser::Serialize>(self, &T) -> gmcrypto_envelope_lite::Result<gmcrypto_envelope_lite::RequestParts>
+pub fn gmcrypto_envelope_lite::RequestBuilder<'a>::metadata(self, gmcrypto_envelope_lite::RequestMetadata) -> Self
+pub struct gmcrypto_envelope_lite::RequestContext
+impl gmcrypto_envelope_lite::RequestContext
+pub fn gmcrypto_envelope_lite::RequestContext::additional_headers(&self) -> impl core::iter::traits::exact_size::ExactSizeIterator<Item = (&gmcrypto_envelope_lite::HeaderName, &gmcrypto_envelope_lite::HeaderValue)>
+pub fn gmcrypto_envelope_lite::RequestContext::builder(impl core::convert::Into<alloc::string::String>) -> gmcrypto_envelope_lite::RequestContextBuilder
+pub fn gmcrypto_envelope_lite::RequestContext::header(&self, &str) -> core::option::Option<&str>
+pub fn gmcrypto_envelope_lite::RequestContext::is_empty(&self) -> bool
+pub fn gmcrypto_envelope_lite::RequestContext::len(&self) -> usize
+pub fn gmcrypto_envelope_lite::RequestContext::protocol(&self) -> &gmcrypto_envelope_lite::ProtocolRequestContext
+impl core::clone::Clone for gmcrypto_envelope_lite::RequestContext
+pub fn gmcrypto_envelope_lite::RequestContext::clone(&self) -> gmcrypto_envelope_lite::RequestContext
+impl core::cmp::Eq for gmcrypto_envelope_lite::RequestContext
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::RequestContext
+pub fn gmcrypto_envelope_lite::RequestContext::eq(&self, &gmcrypto_envelope_lite::RequestContext) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::RequestContext
+pub fn gmcrypto_envelope_lite::RequestContext::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::RequestContext
+pub struct gmcrypto_envelope_lite::RequestContextBuilder
+impl gmcrypto_envelope_lite::RequestContextBuilder
+pub fn gmcrypto_envelope_lite::RequestContextBuilder::build(self) -> gmcrypto_envelope_lite::Result<gmcrypto_envelope_lite::RequestContext>
+pub fn gmcrypto_envelope_lite::RequestContextBuilder::header(self, impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>) -> gmcrypto_envelope_lite::Result<Self>
+pub fn gmcrypto_envelope_lite::RequestContextBuilder::metadata(self, gmcrypto_envelope_lite::RequestMetadata) -> Self
+pub fn gmcrypto_envelope_lite::RequestContextBuilder::new(impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for gmcrypto_envelope_lite::RequestContextBuilder
+pub fn gmcrypto_envelope_lite::RequestContextBuilder::clone(&self) -> gmcrypto_envelope_lite::RequestContextBuilder
+impl core::fmt::Debug for gmcrypto_envelope_lite::RequestContextBuilder
+pub fn gmcrypto_envelope_lite::RequestContextBuilder::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub struct gmcrypto_envelope_lite::RequestMetadata
+impl gmcrypto_envelope_lite::RequestMetadata
+pub fn gmcrypto_envelope_lite::RequestMetadata::generate() -> gmcrypto_envelope_lite::Result<Self>
+pub fn gmcrypto_envelope_lite::RequestMetadata::new(impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>) -> gmcrypto_envelope_lite::Result<Self>
+pub fn gmcrypto_envelope_lite::RequestMetadata::request_id(&self) -> &str
+pub fn gmcrypto_envelope_lite::RequestMetadata::request_time(&self) -> &str
+impl core::clone::Clone for gmcrypto_envelope_lite::RequestMetadata
+pub fn gmcrypto_envelope_lite::RequestMetadata::clone(&self) -> gmcrypto_envelope_lite::RequestMetadata
+impl core::cmp::Eq for gmcrypto_envelope_lite::RequestMetadata
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::RequestMetadata
+pub fn gmcrypto_envelope_lite::RequestMetadata::eq(&self, &gmcrypto_envelope_lite::RequestMetadata) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::RequestMetadata
+pub fn gmcrypto_envelope_lite::RequestMetadata::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::RequestMetadata
+pub struct gmcrypto_envelope_lite::RequestParts
+impl gmcrypto_envelope_lite::RequestParts
+pub fn gmcrypto_envelope_lite::RequestParts::body(&self) -> &str
+pub fn gmcrypto_envelope_lite::RequestParts::header(&self, &str) -> core::option::Option<&str>
+pub fn gmcrypto_envelope_lite::RequestParts::headers(&self) -> impl core::iter::traits::exact_size::ExactSizeIterator<Item = (&gmcrypto_envelope_lite::HeaderName, &gmcrypto_envelope_lite::HeaderValue)>
+pub fn gmcrypto_envelope_lite::RequestParts::is_empty(&self) -> bool
+pub fn gmcrypto_envelope_lite::RequestParts::len(&self) -> usize
+pub fn gmcrypto_envelope_lite::RequestParts::new<I, K, V, B>(I, B) -> gmcrypto_envelope_lite::Result<Self> where I: core::iter::traits::collect::IntoIterator<Item = (K, V)>, K: core::convert::Into<alloc::string::String>, V: core::convert::Into<alloc::string::String>, B: core::convert::Into<alloc::string::String>
+impl core::clone::Clone for gmcrypto_envelope_lite::RequestParts
+pub fn gmcrypto_envelope_lite::RequestParts::clone(&self) -> gmcrypto_envelope_lite::RequestParts
+impl core::cmp::Eq for gmcrypto_envelope_lite::RequestParts
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::RequestParts
+pub fn gmcrypto_envelope_lite::RequestParts::eq(&self, &gmcrypto_envelope_lite::RequestParts) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::RequestParts
+pub fn gmcrypto_envelope_lite::RequestParts::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::RequestParts
+pub struct gmcrypto_envelope_lite::ResponseParts
+impl gmcrypto_envelope_lite::ResponseParts
+pub fn gmcrypto_envelope_lite::ResponseParts::body(&self) -> &str
+pub fn gmcrypto_envelope_lite::ResponseParts::headers(&self) -> impl core::iter::traits::exact_size::ExactSizeIterator<Item = (&str, &str)>
+pub fn gmcrypto_envelope_lite::ResponseParts::into_parts(self) -> (alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, alloc::string::String)
+pub fn gmcrypto_envelope_lite::ResponseParts::new<I, K, V, B>(I, B) -> Self where I: core::iter::traits::collect::IntoIterator<Item = (K, V)>, K: core::convert::Into<alloc::string::String>, V: core::convert::Into<alloc::string::String>, B: core::convert::Into<alloc::string::String>
+impl core::clone::Clone for gmcrypto_envelope_lite::ResponseParts
+pub fn gmcrypto_envelope_lite::ResponseParts::clone(&self) -> gmcrypto_envelope_lite::ResponseParts
+impl core::cmp::Eq for gmcrypto_envelope_lite::ResponseParts
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::ResponseParts
+pub fn gmcrypto_envelope_lite::ResponseParts::eq(&self, &gmcrypto_envelope_lite::ResponseParts) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::ResponseParts
+pub fn gmcrypto_envelope_lite::ResponseParts::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::ResponseParts
+pub struct gmcrypto_envelope_lite::SecureClient
+impl gmcrypto_envelope_lite::SecureClient
+pub fn gmcrypto_envelope_lite::SecureClient::build_json_request<T: serde_core::ser::Serialize>(&self, &T, gmcrypto_envelope_lite::RequestContext) -> gmcrypto_envelope_lite::Result<gmcrypto_envelope_lite::RequestParts>
+pub fn gmcrypto_envelope_lite::SecureClient::build_request(&self, &[u8], gmcrypto_envelope_lite::RequestContext) -> gmcrypto_envelope_lite::Result<gmcrypto_envelope_lite::RequestParts>
+pub fn gmcrypto_envelope_lite::SecureClient::config(&self) -> &gmcrypto_envelope_lite::ClientConfig
+pub fn gmcrypto_envelope_lite::SecureClient::new(gmcrypto_envelope_lite::ClientConfig, gmcrypto_envelope_lite::KeyMaterial, alloc::sync::Arc<dyn gmcrypto_envelope_lite::ProtocolAdapter>) -> Self
+pub fn gmcrypto_envelope_lite::SecureClient::open(&self, &gmcrypto_envelope_lite::SecureEnvelope, &gmcrypto_envelope_lite::AuthenticationContext) -> gmcrypto_envelope_lite::Result<alloc::vec::Vec<u8>>
+pub fn gmcrypto_envelope_lite::SecureClient::open_json_response<T: serde_core::de::DeserializeOwned>(&self, gmcrypto_envelope_lite::ResponseParts) -> gmcrypto_envelope_lite::Result<T>
+pub fn gmcrypto_envelope_lite::SecureClient::open_response(&self, gmcrypto_envelope_lite::ResponseParts) -> gmcrypto_envelope_lite::Result<alloc::vec::Vec<u8>>
+pub fn gmcrypto_envelope_lite::SecureClient::request(&self, impl core::convert::Into<alloc::string::String>) -> gmcrypto_envelope_lite::RequestBuilder<'_>
+pub fn gmcrypto_envelope_lite::SecureClient::seal(&self, &[u8], &gmcrypto_envelope_lite::AuthenticationContext) -> gmcrypto_envelope_lite::Result<gmcrypto_envelope_lite::SecureEnvelope>
+pub struct gmcrypto_envelope_lite::SecureEnvelope
+pub gmcrypto_envelope_lite::SecureEnvelope::cipher: alloc::string::String
+pub gmcrypto_envelope_lite::SecureEnvelope::signature: alloc::string::String
+pub gmcrypto_envelope_lite::SecureEnvelope::wrapped_session_key: alloc::string::String
+impl core::clone::Clone for gmcrypto_envelope_lite::SecureEnvelope
+pub fn gmcrypto_envelope_lite::SecureEnvelope::clone(&self) -> gmcrypto_envelope_lite::SecureEnvelope
+impl core::cmp::Eq for gmcrypto_envelope_lite::SecureEnvelope
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::SecureEnvelope
+pub fn gmcrypto_envelope_lite::SecureEnvelope::eq(&self, &gmcrypto_envelope_lite::SecureEnvelope) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::SecureEnvelope
+pub fn gmcrypto_envelope_lite::SecureEnvelope::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::SecureEnvelope
+impl serde_core::ser::Serialize for gmcrypto_envelope_lite::SecureEnvelope
+pub fn gmcrypto_envelope_lite::SecureEnvelope::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for gmcrypto_envelope_lite::SecureEnvelope
+pub fn gmcrypto_envelope_lite::SecureEnvelope::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+pub const gmcrypto_envelope_lite::DEFAULT_MAX_PLAINTEXT_BYTES: usize
+pub trait gmcrypto_envelope_lite::ProtocolAdapter: core::marker::Send + core::marker::Sync
+pub fn gmcrypto_envelope_lite::ProtocolAdapter::build_request(&self, &gmcrypto_envelope_lite::ClientIdentity, &gmcrypto_envelope_lite::ProtocolRequestContext, &gmcrypto_envelope_lite::SecureEnvelope) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::RequestParts>
+pub fn gmcrypto_envelope_lite::ProtocolAdapter::parse_response(&self, gmcrypto_envelope_lite::ResponseParts) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::ParsedResponse>
+pub fn gmcrypto_envelope_lite::ProtocolAdapter::request_authentication_context(&self, &gmcrypto_envelope_lite::ClientIdentity, &gmcrypto_envelope_lite::ProtocolRequestContext) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::AuthenticationContext>
+impl gmcrypto_envelope_lite::ProtocolAdapter for gmcrypto_envelope_lite::HeaderProtocolAdapter
+pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::build_request(&self, &gmcrypto_envelope_lite::ClientIdentity, &gmcrypto_envelope_lite::ProtocolRequestContext, &gmcrypto_envelope_lite::SecureEnvelope) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::RequestParts>
+pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::parse_response(&self, gmcrypto_envelope_lite::ResponseParts) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::ParsedResponse>
+pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::request_authentication_context(&self, &gmcrypto_envelope_lite::ClientIdentity, &gmcrypto_envelope_lite::ProtocolRequestContext) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::AuthenticationContext>
+pub type gmcrypto_envelope_lite::AdapterResult<T> = core::result::Result<T, gmcrypto_envelope_lite::AdapterError>
+pub type gmcrypto_envelope_lite::Result<T> = core::result::Result<T, gmcrypto_envelope_lite::Error>

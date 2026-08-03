@@ -4,7 +4,9 @@ set -eu
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 inventory="$repo_root/docs/security/cryptographic-dependencies.md"
 snapshot="$repo_root/ci/crypto-inventory.snapshot"
+aead_snapshot="$repo_root/ci/crypto-inventory-aead.snapshot"
 boundary_packages='base64@0.22.1 cmov@0.5.4 cpubits@0.1.1 crypto-bigint@0.7.5 ctutils@0.4.2 getrandom@0.4.3 gmcrypto-core@1.11.0 rand_core@0.10.1 spin@0.10.1 subtle@2.6.1 zeroize@1.9.0 zeroize_derive@1.5.0'
+aead_boundary_packages='cpufeatures@0.2.17 gmcrypto-core@1.11.0 gmcrypto-simd@1.11.0'
 
 fail() {
     echo "error: $*" >&2
@@ -72,6 +74,7 @@ single_lock_checksum() {
 
 test -f "$inventory" || fail "cryptographic dependency inventory is missing"
 test -f "$snapshot" || fail "cryptographic dependency snapshot is missing"
+test -f "$aead_snapshot" || fail "AEAD cryptographic dependency snapshot is missing"
 
 lock_field_count=$(grep -c '^- Reviewed Cargo.lock SHA-256: ' "$inventory" || true)
 test "$lock_field_count" -eq 1 || fail "inventory has no single Cargo.lock SHA-256 field"
@@ -88,15 +91,50 @@ locked_backend_checksum=$(single_lock_checksum gmcrypto-core 1.11.0)
 test "$locked_backend_checksum" = "$documented_backend_checksum" || fail "gmcrypto-core registry checksum differs from the inventory"
 grep -F 'gmcrypto-core = { version = "1.11", features = ["x509"] }' \
     "$repo_root/Cargo.toml" >/dev/null || fail "gmcrypto-core manifest requirement or features changed"
+grep -F 'aead = ["gmcrypto-core/sm4-aead"]' \
+    "$repo_root/Cargo.toml" >/dev/null || fail "aead feature definition changed"
 
+expected_view=
+actual_view=
+expected_names=
+boundary_names=
+aead_expected_names=
+aead_boundary_names=
+aead_expected_package_versions=
+aead_boundary_package_versions=
+document_rows=
+document_view=
+snapshot_view=
+overlay_expected=
+overlay_actual=
+overlay_expected_view=
+cleanup() {
+    for temporary_file in \
+        "$expected_view" "$actual_view" "$expected_names" "$boundary_names" \
+        "$aead_expected_names" "$aead_boundary_names" \
+        "$aead_expected_package_versions" "$aead_boundary_package_versions" \
+        "$document_rows" "$document_view" "$snapshot_view" \
+        "$overlay_expected" "$overlay_actual" "$overlay_expected_view"
+    do
+        test -z "$temporary_file" || rm -f "$temporary_file"
+    done
+}
+trap cleanup 0
+trap 'exit 1' HUP INT TERM
 expected_view=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-expected-view.XXXXXX")
 actual_view=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-actual-view.XXXXXX")
 expected_names=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-expected-names.XXXXXX")
 boundary_names=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-boundary-names.XXXXXX")
+aead_expected_names=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-aead-expected-names.XXXXXX")
+aead_boundary_names=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-aead-boundary-names.XXXXXX")
+aead_expected_package_versions=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-aead-expected-package-versions.XXXXXX")
+aead_boundary_package_versions=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-aead-boundary-package-versions.XXXXXX")
 document_rows=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-document-rows.XXXXXX")
 document_view=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-document-view.XXXXXX")
 snapshot_view=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-snapshot-view.XXXXXX")
-trap 'rm -f -- "$expected_view" "$actual_view" "$expected_names" "$boundary_names" "$document_rows" "$document_view" "$snapshot_view"' EXIT HUP INT TERM
+overlay_expected=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-aead-expected.XXXXXX")
+overlay_actual=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-aead-actual.XXXXXX")
+overlay_expected_view=$(mktemp "${TMPDIR:-/tmp}/secure-envelope-aead-expected-view.XXXXXX")
 
 awk -F'|' '
     /^#/ || /^$/ { next }
@@ -104,9 +142,16 @@ awk -F'|' '
     $1 == "" || $2 == "" || $3 == "" || $4 !~ /^[0-9a-f]+$/ || length($4) != 64 { exit 1 }
     $5 != "reviewed-no-unsafe-source" && $5 != "reviewed-unsafe-present" { exit 1 }
 ' "$snapshot" || fail "cryptographic dependency snapshot has an invalid row"
+awk -F'|' '
+    /^#/ || /^$/ { next }
+    NF != 5 { exit 1 }
+    $1 == "" || $2 == "" || $3 == "" || $4 !~ /^[0-9a-f]+$/ || length($4) != 64 { exit 1 }
+    $5 != "reviewed-no-unsafe-source" && $5 != "reviewed-unsafe-present" { exit 1 }
+' "$aead_snapshot" || fail "AEAD cryptographic dependency snapshot has an invalid row"
 snapshot_row_count=$(grep -v '^#' "$snapshot" | sed '/^$/d' | wc -l | tr -d ' ')
+aead_row_count=$(grep -v '^#' "$aead_snapshot" | sed '/^$/d' | wc -l | tr -d ' ')
 inventory_table_line_count=$(grep -c '^|' "$inventory" || true)
-test "$inventory_table_line_count" -eq "$((snapshot_row_count + 2))" ||
+test "$inventory_table_line_count" -eq "$((snapshot_row_count + aead_row_count + 4))" ||
     fail "human-readable cryptographic dependency table is invalid"
 grep -v '^#' "$snapshot" | sed '/^$/d' | cut -d'|' -f1 | LC_ALL=C sort >"$expected_names"
 if test "$(uniq -d "$expected_names" | wc -l | tr -d ' ')" -ne 0; then
@@ -116,6 +161,22 @@ for package_version in $boundary_packages; do
     printf '%s\n' "${package_version%@*}"
 done | LC_ALL=C sort >"$boundary_names"
 cmp -s "$boundary_names" "$expected_names" || fail "cryptographic dependency snapshot has missing or unexpected packages"
+
+grep -v '^#' "$aead_snapshot" | sed '/^$/d' | cut -d'|' -f1 | LC_ALL=C sort >"$aead_expected_names"
+if test "$(uniq -d "$aead_expected_names" | wc -l | tr -d ' ')" -ne 0; then
+    fail "AEAD cryptographic dependency snapshot has duplicate packages"
+fi
+for package_version in $aead_boundary_packages; do
+    printf '%s\n' "${package_version%@*}"
+done | LC_ALL=C sort >"$aead_boundary_names"
+cmp -s "$aead_boundary_names" "$aead_expected_names" || fail "AEAD cryptographic dependency snapshot has missing or unexpected packages"
+grep -v '^#' "$aead_snapshot" | sed '/^$/d' | \
+    awk -F'|' '{ print $1 "@" $2 }' | LC_ALL=C sort >"$aead_expected_package_versions"
+for package_version in $aead_boundary_packages; do
+    printf '%s\n' "$package_version"
+done | LC_ALL=C sort >"$aead_boundary_package_versions"
+cmp -s "$aead_boundary_package_versions" "$aead_expected_package_versions" || \
+    fail "AEAD cryptographic dependency snapshot has missing, unexpected, or re-versioned packages"
 
 if ! awk -F'|' '
     function trim(value) {
@@ -156,13 +217,20 @@ if ! awk -F'|' '
     fail "human-readable cryptographic dependency table is invalid"
 fi
 LC_ALL=C sort "$document_rows" >"$document_view"
-grep -v '^#' "$snapshot" | sed '/^$/d' | LC_ALL=C sort >"$snapshot_view"
+{ grep -v '^#' "$snapshot"; grep -v '^#' "$aead_snapshot"; } |
+    sed '/^$/d' | LC_ALL=C sort >"$snapshot_view"
 cmp -s "$document_view" "$snapshot_view" || fail "human-readable cryptographic dependency table differs from the reviewed snapshot"
 
 feature_list() {
     package=$1
     version=$2
-    if ! feature_tree=$(cd "$repo_root" && cargo tree --locked -e features -i "$package@$version"); then
+    tree_mode=${3:-default}
+    if test "$tree_mode" = aead; then
+        set -- --features aead
+    else
+        set --
+    fi
+    if ! feature_tree=$(cd "$repo_root" && cargo tree --locked "$@" -e features -i "$package@$version"); then
         fail "cargo tree has no single resolved feature graph for $package $version"
     fi
     resolved_features=$(printf '%s\n' "$feature_tree" |
@@ -186,5 +254,17 @@ done
 LC_ALL=C sort -o "$actual_view" "$actual_view"
 grep -v '^#' "$snapshot" | sed '/^$/d' | cut -d'|' -f1-4 | LC_ALL=C sort >"$expected_view"
 cmp -s "$expected_view" "$actual_view" || fail "resolved cryptographic dependency package, feature, or checksum differs from the reviewed snapshot"
+
+{ grep -v '^#' "$snapshot" | sed '/^$/d' | grep -v '^gmcrypto-core|'; \
+  grep -v '^#' "$aead_snapshot" | sed '/^$/d'; } | LC_ALL=C sort >"$overlay_expected"
+while IFS='|' read -r package version _rest; do
+    features=$(feature_list "$package" "$version" aead)
+    checksum=$(single_lock_checksum "$package" "$version")
+    printf '%s|%s|%s|%s\n' "$package" "$version" "$features" "$checksum" >>"$overlay_actual"
+done <"$overlay_expected"
+LC_ALL=C sort -o "$overlay_actual" "$overlay_actual"
+cut -d'|' -f1-4 <"$overlay_expected" >"$overlay_expected_view"
+cmp -s "$overlay_expected_view" "$overlay_actual" || \
+    fail "resolved AEAD cryptographic dependency package, feature, or checksum differs from the reviewed snapshot"
 
 echo "cryptographic dependency inventory check passed"

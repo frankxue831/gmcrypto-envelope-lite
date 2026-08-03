@@ -85,7 +85,7 @@ test -z "$(git -C "$repo_root" status --porcelain --untracked-files=all)" || \
     fail "worktree must be clean before RC construction"
 
 package_name=gmcrypto-envelope-lite
-package_version=0.1.0
+package_version=0.2.0
 manifest_package_name=$(package_field name) || fail "could not read Cargo package name"
 manifest_package_version=$(package_field version) || fail "could not read Cargo package version"
 test "$manifest_package_name" = "$package_name" || fail "Cargo package name does not match RC identity"
@@ -269,11 +269,17 @@ grep -F "**Template version:** $RELEASE_CHECKLIST_VERSION" \
 
 (cd "$repo_root" && run_cargo stable "$stable_bin" "$stable_cargo" fmt --all -- --check)
 (cd "$repo_root" && run_cargo stable "$stable_bin" "$stable_cargo" clippy --all-targets --locked -- -D warnings)
+(cd "$repo_root" && run_cargo stable "$stable_bin" "$stable_cargo" clippy --all-targets --locked --features aead -- -D warnings)
 (cd "$repo_root" && run_cargo stable "$stable_bin" "$stable_cargo" test --all-targets --locked)
+(cd "$repo_root" && run_cargo stable "$stable_bin" "$stable_cargo" test --all-targets --locked --features aead)
 (cd "$repo_root" && run_cargo stable "$stable_bin" "$stable_cargo" test --doc --locked)
+(cd "$repo_root" && run_cargo stable "$stable_bin" "$stable_cargo" test --doc --locked --features aead)
 (cd "$repo_root" && export RUSTDOCFLAGS="-D missing-docs -D warnings" && \
     run_cargo stable "$stable_bin" "$stable_cargo" doc --locked --no-deps)
+(cd "$repo_root" && export RUSTDOCFLAGS="-D missing-docs -D warnings" && \
+    run_cargo stable "$stable_bin" "$stable_cargo" doc --locked --no-deps --features aead)
 (cd "$repo_root" && run_cargo 1.85.0 "$msrv_bin" "$msrv_cargo" test --all-targets --locked)
+(cd "$repo_root" && run_cargo 1.85.0 "$msrv_bin" "$msrv_cargo" test --all-targets --locked --features aead)
 (cd "$repo_root" && run_cargo stable "$stable_bin" "$stable_cargo" deny check)
 PATH="$stable_bin:$original_path" "$repo_root/ci/check-public-api.sh"
 PATH="$stable_bin:$original_path" "$repo_root/ci/check-crypto-inventory.sh"

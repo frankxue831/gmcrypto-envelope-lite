@@ -17,7 +17,7 @@ mkdir -p "$fixture/ci" "$fixture/fuzz/corpus" "$fixture/rustup-bin" \
     "$fixture/pinned-bin" "$fixture/other-bin" "$fixture/tmp" \
     "$fixture/ambient-stable" "$fixture/ambient-nightly"
 cp "$repo_root/ci/fuzz-smoke.sh" "$repo_root/ci/tool-versions.sh" "$fixture/ci/"
-for target in transport_parts encoded_envelope typed_headers; do
+for target in transport_parts encoded_envelope typed_headers aead_envelope; do
     mkdir "$fixture/fuzz/corpus/$target"
     printf '%s\n' "$target seed" >"$fixture/fuzz/corpus/$target/seed"
 done
@@ -176,12 +176,12 @@ test -e "$fixture/pristine_stable.nested" || fail "pinned cargo did not verify n
 test -e "$fixture/pristine_stable.nested-rustc" || fail "pinned cargo did not verify nested rustc resolution"
 test -e "$fixture/pristine_stable.pinned-rustc" || fail "pinned rustc did not run"
 contains "$fixture/pristine_stable.out" "smoke fuzz run passed"
-test "$(cat "$fixture/pristine_stable.events")" = "$(printf '%s\n' scenario fuzz:transport_parts fuzz:encoded_envelope fuzz:typed_headers)" || \
+test "$(cat "$fixture/pristine_stable.events")" = "$(printf '%s\n' scenario fuzz:transport_parts fuzz:encoded_envelope fuzz:typed_headers fuzz:aead_envelope)" || \
     fail "scenario contracts did not run exactly once before all smoke targets"
 test "$(grep -Fxc "nightly-2026-05-23|$fixture/pinned-bin/cargo|test" "$fixture/pristine_stable.toolchain")" -eq 1 || \
     fail "scenario contracts did not use the absolute pinned Cargo and declared toolchain exactly once"
-test "$(wc -l <"$fixture/pristine_stable.log")" -eq 3 || fail "expected three smoke targets"
-test "$(awk '{print $1}' "$fixture/pristine_stable.log")" = "$(printf '%s\n' transport_parts encoded_envelope typed_headers)" || \
+test "$(wc -l <"$fixture/pristine_stable.log")" -eq 4 || fail "expected four smoke targets"
+test "$(awk '{print $1}' "$fixture/pristine_stable.log")" = "$(printf '%s\n' transport_parts encoded_envelope typed_headers aead_envelope)" || \
     fail "fuzz targets ran out of order"
 test "$(sed 's/^[^ ]* //' "$fixture/pristine_stable.log" | sort -u)" = \
     "-runs=256 -seed=424242 -max_len=4096 -rss_limit_mb=512 -timeout=5" || \
@@ -191,7 +191,7 @@ cksum "$fixture"/fuzz/corpus/*/seed >"$fixture/corpus.after"
 cmp "$fixture/corpus.before" "$fixture/corpus.after" >/dev/null || fail "tracked corpus changed"
 ls -ld "$fixture"/fuzz/corpus/* "$fixture"/fuzz/corpus/*/seed >"$fixture/corpus-modes.after"
 cmp "$fixture/corpus-modes.before" "$fixture/corpus-modes.after" >/dev/null || fail "tracked corpus modes changed"
-for target in transport_parts encoded_envelope typed_headers; do
+for target in transport_parts encoded_envelope typed_headers aead_envelope; do
     test -w "$fixture/fuzz/corpus/$target" && test -w "$fixture/fuzz/corpus/$target/seed" || \
         fail "success left source corpus non-writable: $target"
 done
@@ -230,21 +230,22 @@ cksum "$fixture"/fuzz/corpus/*/seed >"$fixture/corpus.failure"
 cmp "$fixture/corpus.before" "$fixture/corpus.failure" >/dev/null || fail "failure changed tracked corpus"
 ls -ld "$fixture"/fuzz/corpus/* "$fixture"/fuzz/corpus/*/seed >"$fixture/corpus-modes.failure"
 cmp "$fixture/corpus-modes.before" "$fixture/corpus-modes.failure" >/dev/null || fail "failure changed tracked corpus modes"
-for target in transport_parts encoded_envelope typed_headers; do
+for target in transport_parts encoded_envelope typed_headers aead_envelope; do
     test -w "$fixture/fuzz/corpus/$target" && test -w "$fixture/fuzz/corpus/$target/seed" || \
         fail "failure left source corpus non-writable: $target"
 done
 
 if ! run_checker extended "$fixture/ambient-stable" extended; then cat "$fixture/extended.err" >&2; fail extended; fi
-test "$(cat "$fixture/extended.events")" = "$(printf '%s\n' scenario fuzz:transport_parts fuzz:encoded_envelope fuzz:typed_headers)" || \
+test "$(cat "$fixture/extended.events")" = "$(printf '%s\n' scenario fuzz:transport_parts fuzz:encoded_envelope fuzz:typed_headers fuzz:aead_envelope)" || \
     fail "scenario contracts did not run exactly once before all extended targets"
 test "$(grep -Fxc "nightly-2026-05-23|$fixture/pinned-bin/cargo|test" "$fixture/extended.toolchain")" -eq 1 || \
     fail "extended scenario contracts did not use the absolute pinned Cargo and declared toolchain exactly once"
 contains "$fixture/extended.log" "-max_total_time=100 -seed=424242 -max_len=4096 -rss_limit_mb=512 -timeout=5"
 grep -F -- "-runs=" "$fixture/extended.log" >/dev/null && fail "extended unexpectedly used runs"
-test "$(wc -l <"$fixture/extended.log")" -eq 3 || fail "expected three extended targets"
+test "$(wc -l <"$fixture/extended.log")" -eq 4 || fail "expected four extended targets"
 
 contains "$repo_root/fuzz/corpus/encoded_envelope/full_valid_open" "vvv000|0:|0:|0:"
+contains "$repo_root/fuzz/corpus/aead_envelope/full_valid_open" "vvv000|0:|0:|0:"
 contains "$repo_root/fuzz/corpus/encoded_envelope/cipher_limit_plus_one" "vvb002|0:|0:|0:"
 contains "$repo_root/fuzz/corpus/transport_parts/case_insensitive_duplicate" "D"
 contains "$repo_root/fuzz/corpus/typed_headers/case_insensitive_duplicate" "D"

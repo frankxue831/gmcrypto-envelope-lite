@@ -199,7 +199,7 @@ fn crate_manifest_uses_final_identity() {
     );
     assert!(
         !manifest.contains("publish = false"),
-        "publication is enabled for the 0.1.0 release; publish = false must stay removed"
+        "publication is enabled for the 0.2.0 release; publish = false must stay removed"
     );
 }
 
@@ -386,7 +386,7 @@ fn security_model_is_versioned_and_states_claims_and_non_claims() {
     assert_markers(
         &model,
         &[
-            "**Model version:** 1",
+            "**Model version:** 2",
             "## Protected assets and attacker-controlled inputs",
             "## Trust boundaries",
             "## Security claims",
@@ -395,7 +395,7 @@ fn security_model_is_versioned_and_states_claims_and_non_claims() {
             "LegacyPlaintext",
             "ContextBound",
             "not independently audited",
-            "does not provide an AEAD envelope profile",
+            "Without the opt-in `aead` feature it provides no AEAD envelope profile",
         ],
     );
 
@@ -403,6 +403,13 @@ fn security_model_is_versioned_and_states_claims_and_non_claims() {
     let policy = repository_file("SECURITY.md");
     assert!(readme.contains("[Security model](SECURITY_MODEL.md)"));
     assert!(policy.contains("[Security model](SECURITY_MODEL.md)"));
+    assert_markers(
+        &policy,
+        &[
+            "## Supported versions",
+            "| 0.2.x (unreleased) | Yes — latest commit on `main` only |",
+        ],
+    );
 }
 
 #[test]
@@ -411,17 +418,19 @@ fn api_stability_policy_records_open_and_closed_boundaries() {
     assert_markers(
         &policy,
         &[
-            "**Policy version:** 1",
+            "**Policy version:** 2",
+            "Within 0.2.x",
             "AuthenticationMode",
             "AdapterErrorKind",
             "KeyKind",
             "PeerKeySource",
             "Error",
-            "`AuthenticationMode`, `AdapterErrorKind`, `KeyKind`, `PeerKeySource`, and `Error` are `#[non_exhaustive]`.",
+            "`AuthenticationMode`, `AdapterErrorKind`, `KeyKind`, `PeerKeySource`, `Error`, and the feature-gated `EnvelopeMode` and `AeadAlgorithm` are `#[non_exhaustive]`.",
             "CipherLocation",
             "`CipherLocation` is exhaustive",
             "ProtocolAdapter",
-            "api/gmcrypto-envelope-lite-0.1.0.txt",
+            "api/gmcrypto-envelope-lite-0.2.0.txt",
+            "api/gmcrypto-envelope-lite-0.2.0-aead.txt",
         ],
     );
 }
@@ -432,7 +441,7 @@ fn engineering_evidence_is_versioned_and_disclaims_audit_status() {
     assert_markers(
         &evidence,
         &[
-            "**Evidence version:** 1",
+            "**Evidence version:** 2",
             "not an independent audit, certification, warranty, or proof",
             "tests/standard_vectors.rs",
             "directional_roles_drive_two_party_cryptography",
@@ -459,9 +468,9 @@ fn cryptographic_dependency_inventory_records_the_reviewed_root_lockfile() {
     assert_markers(
         &inventory,
         &[
-            "**Inventory version:** 1",
+            "**Inventory version:** 2",
             "`gmcrypto-core` | `1.11.0` | `x509`",
-            "`284474aa170fcfa7a3cad31f3d3264d6fb7c6ceac49a99a213dc104e0ef23476`",
+            "`cb3fed2e6bc3653fdab3cfd026c828418c183aa97535308668dd15d59fdf6bfa`",
             "unsafe_code = \"forbid\"",
             "No universal constant-time claim",
         ],

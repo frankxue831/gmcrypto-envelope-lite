@@ -6,6 +6,8 @@ use crate::{Error, Result};
 
 const TRANSCRIPT_VERSION: u8 = 1;
 const TRANSCRIPT_LENGTH_BYTES: usize = 3 * size_of::<u64>();
+#[cfg(feature = "aead")]
+const AEAD_AAD_LABEL: &[u8] = b"gmcrypto-envelope-lite/aead-aad/v1";
 
 /// Selects how plaintext is authenticated by the secure envelope.
 #[derive(Clone, PartialEq, Eq)]
@@ -128,6 +130,49 @@ impl AuthenticationMode {
         }
     }
 
+    /// Builds the additional authenticated data for one AEAD envelope.
+    ///
+    /// The layout is four fields, each preceded by its unsigned 64-bit
+    /// big-endian byte length: a fixed domain label, the 14-byte cipher
+    /// frame header, the configured domain separator, and the protocol
+    /// context. Under [`AuthenticationMode::LegacyPlaintext`] the last
+    /// two fields are empty.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::AuthenticationContext`] when the context kind
+    /// does not match this mode, mirroring
+    /// [`AuthenticationMode::authentication_input`].
+    #[cfg(feature = "aead")]
+    pub fn aead_aad(
+        &self,
+        context: &AuthenticationContext,
+        frame_header: &[u8; 14],
+    ) -> Result<Vec<u8>> {
+        self.validate()?;
+
+        let (domain_separator, protocol_context): (&[u8], &[u8]) = match (self, &context.kind) {
+            (Self::LegacyPlaintext, ContextKind::Legacy) => (&[], &[]),
+            (Self::ContextBound { domain_separator }, ContextKind::Bound(bound)) => {
+                (domain_separator.as_slice(), bound.as_slice())
+            }
+            _ => return Err(Error::AuthenticationContext),
+        };
+
+        let capacity = (4 * size_of::<u64>())
+            .checked_add(AEAD_AAD_LABEL.len())
+            .and_then(|length| length.checked_add(frame_header.len()))
+            .and_then(|length| length.checked_add(domain_separator.len()))
+            .and_then(|length| length.checked_add(protocol_context.len()))
+            .ok_or(Error::AuthenticationContext)?;
+        let mut aad = Vec::with_capacity(capacity);
+        push_field(&mut aad, AEAD_AAD_LABEL)?;
+        push_field(&mut aad, frame_header)?;
+        push_field(&mut aad, domain_separator)?;
+        push_field(&mut aad, protocol_context)?;
+        Ok(aad)
+    }
+
     pub(crate) fn validate(&self) -> Result<()> {
         match self {
             Self::ContextBound { domain_separator } if domain_separator.is_empty() => {
@@ -166,4 +211,70 @@ fn push_field(target: &mut Vec<u8>, value: &[u8]) -> Result<()> {
     target.extend_from_slice(&length.to_be_bytes());
     target.extend_from_slice(value);
     Ok(())
+}
+
+#[cfg(all(test, feature = "aead"))]
+mod tests {
+    use super::{AuthenticationContext, AuthenticationMode};
+    use crate::Error;
+
+    fn expected_aad(fields: [&[u8]; 4]) -> Vec<u8> {
+        let mut aad = Vec::new();
+        for field in fields {
+            let length = u64::try_from(field.len()).expect("test field length");
+            aad.extend_from_slice(&length.to_be_bytes());
+            aad.extend_from_slice(field);
+        }
+        aad
+    }
+
+    #[test]
+    fn aead_aad_is_length_prefixed_label_header_domain_and_context() {
+        let header = [7_u8; 14];
+
+        let legacy = AuthenticationMode::LegacyPlaintext
+            .aead_aad(&AuthenticationContext::legacy(), &header)
+            .expect("legacy AAD");
+        assert_eq!(
+            legacy,
+            expected_aad([
+                &b"gmcrypto-envelope-lite/aead-aad/v1"[..],
+                &header[..],
+                &b""[..],
+                &b""[..],
+            ])
+        );
+        assert_eq!(
+            legacy[0], 0x00,
+            "an AAD must never begin with the transcript version byte"
+        );
+
+        let mode = AuthenticationMode::context_bound(b"domain/v1").expect("domain");
+        let context = AuthenticationContext::context_bound(b"operation=aad").expect("context");
+        assert_eq!(
+            mode.aead_aad(&context, &header).expect("bound AAD"),
+            expected_aad([
+                &b"gmcrypto-envelope-lite/aead-aad/v1"[..],
+                &header[..],
+                &b"domain/v1"[..],
+                &b"operation=aad"[..],
+            ])
+        );
+    }
+
+    #[test]
+    fn aead_aad_rejects_context_kinds_that_do_not_match_the_mode() {
+        let header = [0_u8; 14];
+        let bound = AuthenticationContext::context_bound(b"operation=aad").expect("context");
+        assert!(matches!(
+            AuthenticationMode::LegacyPlaintext.aead_aad(&bound, &header),
+            Err(Error::AuthenticationContext)
+        ));
+
+        let mode = AuthenticationMode::context_bound(b"domain/v1").expect("domain");
+        assert!(matches!(
+            mode.aead_aad(&AuthenticationContext::legacy(), &header),
+            Err(Error::AuthenticationContext)
+        ));
+    }
 }

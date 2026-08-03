@@ -13,6 +13,10 @@ use gmcrypto_envelope_lite::{
 const TEST_PASSWORD: &[u8] = b"public-fuzz-password";
 pub const AUXILIARY_LIMIT: usize = 16 * 1024;
 pub const MAX_PLAINTEXT_BYTES: usize = 64;
+pub const AEAD_FRAME_OVERHEAD_BYTES: usize = 30;
+// An AEAD frame at the 64-byte plaintext limit is 94 bytes; Base64 rounds up by triples.
+pub const AEAD_CIPHER_LIMIT: usize =
+    (MAX_PLAINTEXT_BYTES + AEAD_FRAME_OVERHEAD_BYTES).div_ceil(3) * 4;
 // PKCS#7 adds a full SM4 block at the exact 64-byte limit, then Base64 rounds up by triples.
 pub const PADDED_CIPHER_BYTES: usize = (MAX_PLAINTEXT_BYTES / 16 + 1) * 16;
 pub const CIPHER_LIMIT: usize = PADDED_CIPHER_BYTES.div_ceil(3) * 4;
@@ -455,4 +459,79 @@ fn mutate(valid: &str, raw: &[u8]) -> String {
         value[index] = if value[index] == b'A' { b'B' } else { b'A' };
     }
     String::from_utf8(value).expect("base64 is UTF-8")
+}
+
+pub fn aead_client() -> &'static SecureClient {
+    static CLIENT: OnceLock<SecureClient> = OnceLock::new();
+    CLIENT.get_or_init(|| {
+        let mut scalar = [0_u8; 32];
+        scalar[31] = 7;
+        let private = Sm2PrivateKey::from_bytes_be(&scalar).expect("valid public test scalar");
+        let encrypted = pkcs8::encrypt(&private, TEST_PASSWORD, &[7_u8; 16], 1, &[8_u8; 16])
+            .expect("runtime-only encrypted fuzz key");
+        let public = spki::encode(&private.public_key());
+        let config = ClientConfig::builder()
+            .local_identity_id("fuzz-identity")
+            .api_version("fuzz-v1")
+            .local_certificate_id("fuzz-certificate")
+            .expected_remote_signing_certificate_id("fuzz-certificate")
+            .remote_encryption_certificate_id("fuzz-encryption-certificate")
+            .local_signer_id(b"fuzz-signer")
+            .expected_remote_signer_id(b"fuzz-signer")
+            .authentication_mode(AuthenticationMode::LegacyPlaintext)
+            .envelope_mode(gmcrypto_envelope_lite::EnvelopeMode::Aead(
+                gmcrypto_envelope_lite::AeadAlgorithm::Sm4Gcm,
+            ))
+            .max_plaintext_bytes(MAX_PLAINTEXT_BYTES)
+            .build()
+            .expect("fixed AEAD fuzz configuration");
+        let keys = KeyMaterial::shared(
+            PrivateKey::from_encrypted_der(&encrypted, TEST_PASSWORD)
+                .expect("runtime-only fuzz private key"),
+            PublicKey::from_der(&public).expect("runtime-only fuzz public key"),
+        );
+        SecureClient::new(
+            config,
+            keys,
+            Arc::new(HeaderProtocolAdapter::new(schema().clone())),
+        )
+    })
+}
+
+pub fn aead_valid_envelope() -> &'static SecureEnvelope {
+    static ENVELOPE: OnceLock<SecureEnvelope> = OnceLock::new();
+    ENVELOPE.get_or_init(|| {
+        aead_client()
+            .seal(VALID_PLAINTEXT, &AuthenticationContext::legacy())
+            .expect("runtime-generated valid AEAD fuzz envelope")
+    })
+}
+
+pub fn aead_encoded_values(data: &[u8]) -> (String, String, String) {
+    let [signature_raw, wrapped_raw, cipher_raw] = fields(data);
+    let selectors = data.get(..6).unwrap_or_default();
+    let envelope = aead_valid_envelope();
+    (
+        select_value(
+            selectors.first(),
+            selectors.get(3),
+            signature_raw,
+            &envelope.signature,
+            AUXILIARY_LIMIT,
+        ),
+        select_value(
+            selectors.get(1),
+            selectors.get(4),
+            wrapped_raw,
+            &envelope.wrapped_session_key,
+            AUXILIARY_LIMIT,
+        ),
+        select_value(
+            selectors.get(2),
+            selectors.get(5),
+            cipher_raw,
+            &envelope.cipher,
+            AEAD_CIPHER_LIMIT,
+        ),
+    )
 }

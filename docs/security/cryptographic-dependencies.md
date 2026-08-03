@@ -1,8 +1,8 @@
 # Cryptographic Dependency Inventory
 
-**Inventory version:** 1
+**Inventory version:** 2
 
-- Reviewed Cargo.lock SHA-256: `284474aa170fcfa7a3cad31f3d3264d6fb7c6ceac49a99a213dc104e0ef23476`
+- Reviewed Cargo.lock SHA-256: `cb3fed2e6bc3653fdab3cfd026c828418c183aa97535308668dd15d59fdf6bfa`
 - Root crate policy: `#![forbid(unsafe_code)]`
 - Backend registry checksum: `4e81a6030cdbef95407ef7924aa2b60469d1263e094b667295cd3d787c2c3095`
 
@@ -25,9 +25,21 @@ The reviewed boundary is the exact package, version, enabled-feature, registry-c
 
 The direct manifest request is `gmcrypto-core` | `1.11.0` | `x509`; its enabled feature set also includes `default`.
 
+## AEAD feature boundary
+
+The rows below are compiled only under the opt-in `aead` feature (`aead = ["gmcrypto-core/sm4-aead"]`). They are locked in `Cargo.lock` unconditionally because Cargo locks the maximal feature graph, but a default build compiles none of this code. The `gmcrypto-core` row here overrides the default-boundary row's enabled-feature set; its registry checksum and scan status are identical. `ci/check-crypto-inventory.sh` validates this table as an overlay on the default boundary using `cargo tree --locked --features aead`.
+
+| Dependency | Resolved version | Enabled features | Registry checksum | Source-scan status | SDK responsibility |
+| --- | --- | --- | --- | --- | --- |
+| `gmcrypto-core` | `1.11.0` | `default`, `sm4-aead`, `x509` | `4e81a6030cdbef95407ef7924aa2b60469d1263e094b667295cd3d787c2c3095` | reviewed: no unsafe source | Adds SM4-GCM sealing and opening for the AEAD envelope mode |
+| `gmcrypto-simd` | `1.11.0` | `none` | `31a7928890d12bd4064aba2664435fc62b2a6a487f8c2611d26856f31d5ceca4` | reviewed: unsafe source present | GHASH carryless-multiply and SIMD SM4 S-box backends quarantined out of `gmcrypto-core` |
+| `cpufeatures` | `0.2.17` | `default` | `59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280` | reviewed: unsafe source present | Runtime CPU-capability detection for SIMD backend selection |
+
+The `sm4-aead` feature is atomic in `gmcrypto-core` and is defined as `["dep:gmcrypto-simd"]`: enabling GCM alone or CCM alone is not possible, and the SIMD crate is the AVX2/NEON and GHASH `clmul`/`pmull` quarantine that lets `gmcrypto-core` keep `unsafe_code = "forbid"` while `gmcrypto-simd` itself sets `unsafe_code = "warn"`. `cpufeatures` depends on the already-locked `libc`, which remains outside this cryptographic boundary as platform plumbing. No constant-time claim is made for the SIMD backends. Each source-scan status remains limited to the exact registry checksum in its row and is not an audit or a safety proof.
+
 For the `spin` 0.10.0 to 0.10.1 lock refresh, the reviewed manifest retains the `once` feature and otherwise changes only the package version. The runtime-source delta is limited to `src/once.rs`: `Once::force_into_inner` now uses `ManuallyDrop` with `assume_init_read` to prevent a double drop, and the crate adds a regression test for moving out a boxed value. The unsafe-source classification therefore remains `reviewed: unsafe source present`. This records the dependency review; it does not claim that this SDK directly exercised the affected consuming APIs.
 
-For the `gmcrypto-core` 1.9.0 to 1.11.0 refresh, the manifest request keeps `x509`, the resolved feature set stays `default`, `x509`, and no transitive dependency was added, removed, or re-versioned. The source delta covers six files: `src/lib.rs`, `src/sm4/mod.rs`, `src/sm4/mode_cbc.rs`, `src/sm4/cbc_streaming.rs`, and the `src/sm4/mode_gcm.rs` and `src/sm4/mode_ccm.rs` AEAD modules, which stay behind the disabled `sm4-aead` feature and are not compiled into this SDK. The compiled delta therefore concentrates in the SM4 CBC path, including the upstream deduplication of PKCS#7 unpadding. The 1.11.0 manifest keeps `unsafe_code = "forbid"`, a source scan of the checksummed package found no unsafe item or block, and the classification remains `reviewed: no unsafe source`. The package license metadata changed from `Apache-2.0` to `MIT OR Apache-2.0`, which the dependency policy allowlist accepts. This records the dependency review; it does not claim that this SDK exercised the feature-gated AEAD APIs or re-established timing behavior.
+For the `gmcrypto-core` 1.9.0 to 1.11.0 refresh, the default (non-AEAD) compiled graph keeps the manifest request at `x509`, the resolved feature set stays `default`, `x509`, and no transitive dependency was added, removed, or re-versioned. The source delta covers six files: `src/lib.rs`, `src/sm4/mod.rs`, `src/sm4/mode_cbc.rs`, `src/sm4/cbc_streaming.rs`, and the `src/sm4/mode_gcm.rs` and `src/sm4/mode_ccm.rs` AEAD modules, which stay behind the `sm4-aead` feature and are not compiled into the default SDK build. The default compiled delta therefore concentrates in the SM4 CBC path, including the upstream deduplication of PKCS#7 unpadding. The opt-in AEAD graph and its additional transitive packages are recorded separately in the feature-scoped inventory tier above. The 1.11.0 manifest keeps `unsafe_code = "forbid"`, a source scan of the checksummed package found no unsafe item or block, and the classification remains `reviewed: no unsafe source`. The package license metadata changed from `Apache-2.0` to `MIT OR Apache-2.0`, which the dependency policy allowlist accepts. This records the dependency review; it does not claim that this SDK re-established timing behavior.
 
 Each source-scan status is limited to the exact registry checksum in its row and means only whether an unsafe item or unsafe block was found in that package's Rust source during review; it is not an audit or a safety proof. The reviewed `gmcrypto-core` 1.11.0 manifest also sets `unsafe_code = "forbid"`, limited to the checksum above.
 

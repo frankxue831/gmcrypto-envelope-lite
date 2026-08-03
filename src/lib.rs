@@ -23,6 +23,8 @@ pub use adapter::{
 };
 pub use auth::{AuthenticationContext, AuthenticationMode};
 pub use client::SecureClient;
+#[cfg(feature = "aead")]
+pub use client_config::{AeadAlgorithm, EnvelopeMode};
 pub use client_config::{
     ClientConfig, ClientConfigBuilder, ClientIdentity, DEFAULT_MAX_PLAINTEXT_BYTES,
 };

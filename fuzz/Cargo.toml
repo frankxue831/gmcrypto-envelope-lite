@@ -8,9 +8,10 @@ edition = "2024"
 cargo-fuzz = true
 
 [dependencies]
+base64 = "0.22.1"
 gmcrypto-core = { version = "=1.11.0", features = ["x509"] }
 libfuzzer-sys = "0.4"
-gmcrypto-envelope-lite = { path = ".." }
+gmcrypto-envelope-lite = { path = "..", features = ["aead"] }
 
 [workspace]
 members = ["."]
@@ -32,6 +33,13 @@ bench = false
 [[bin]]
 name = "typed_headers"
 path = "fuzz_targets/typed_headers.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "aead_envelope"
+path = "fuzz_targets/aead_envelope.rs"
 test = false
 doc = false
 bench = false

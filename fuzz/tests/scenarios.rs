@@ -4,9 +4,12 @@ mod support;
 use std::fs;
 use std::path::Path;
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 use gmcrypto_envelope_lite::{Error, ProtocolAdapter, RequestParts, ResponseParts};
 
 const FULL_VALID_OPEN: &[u8] = include_bytes!("../corpus/encoded_envelope/full_valid_open");
+const AEAD_FULL_VALID: &[u8] = include_bytes!("../corpus/aead_envelope/full_valid_open");
 const RAW_MALFORMED: &[u8] = include_bytes!("../corpus/encoded_envelope/raw_malformed");
 const TRANSPORT_SUCCESS: &[u8] = include_bytes!("../corpus/transport_parts/success");
 const TYPED_VALID: &[u8] = include_bytes!("../corpus/typed_headers/valid_request");
@@ -64,6 +67,82 @@ const ENCODED_CASES: &[(&str, &[u8])] = &[
     ),
 ];
 
+const AEAD_CASES: &[(&str, &[u8])] = &[
+    (
+        "cipher_limit",
+        include_bytes!("../corpus/aead_envelope/cipher_limit"),
+    ),
+    (
+        "cipher_limit_minus_one",
+        include_bytes!("../corpus/aead_envelope/cipher_limit_minus_one"),
+    ),
+    (
+        "cipher_limit_plus_one",
+        include_bytes!("../corpus/aead_envelope/cipher_limit_plus_one"),
+    ),
+    (
+        "cryptographic_mutation_cipher",
+        include_bytes!("../corpus/aead_envelope/cryptographic_mutation_cipher"),
+    ),
+    (
+        "cryptographic_mutation_nonce",
+        include_bytes!("../corpus/aead_envelope/cryptographic_mutation_nonce"),
+    ),
+    (
+        "cryptographic_mutation_signature",
+        include_bytes!("../corpus/aead_envelope/cryptographic_mutation_signature"),
+    ),
+    (
+        "cryptographic_mutation_tag",
+        include_bytes!("../corpus/aead_envelope/cryptographic_mutation_tag"),
+    ),
+    (
+        "cryptographic_mutation_wrapped_key",
+        include_bytes!("../corpus/aead_envelope/cryptographic_mutation_wrapped_key"),
+    ),
+    (
+        "frame_floor",
+        include_bytes!("../corpus/aead_envelope/frame_floor"),
+    ),
+    (
+        "frame_floor_minus_one",
+        include_bytes!("../corpus/aead_envelope/frame_floor_minus_one"),
+    ),
+    ("full_valid_open", AEAD_FULL_VALID),
+    (
+        "raw_malformed",
+        include_bytes!("../corpus/aead_envelope/raw_malformed"),
+    ),
+    (
+        "reserved_ccm_algorithm",
+        include_bytes!("../corpus/aead_envelope/reserved_ccm_algorithm"),
+    ),
+    (
+        "signature_limit",
+        include_bytes!("../corpus/aead_envelope/signature_limit"),
+    ),
+    (
+        "signature_limit_minus_one",
+        include_bytes!("../corpus/aead_envelope/signature_limit_minus_one"),
+    ),
+    (
+        "signature_limit_plus_one",
+        include_bytes!("../corpus/aead_envelope/signature_limit_plus_one"),
+    ),
+    (
+        "wrapped_key_limit",
+        include_bytes!("../corpus/aead_envelope/wrapped_key_limit"),
+    ),
+    (
+        "wrapped_key_limit_minus_one",
+        include_bytes!("../corpus/aead_envelope/wrapped_key_limit_minus_one"),
+    ),
+    (
+        "wrapped_key_limit_plus_one",
+        include_bytes!("../corpus/aead_envelope/wrapped_key_limit_plus_one"),
+    ),
+];
+
 const TRANSPORT_CASES: &[(
     &str,
     &[u8],
@@ -118,6 +197,7 @@ const TYPED_CASES: &[(
 
 #[test]
 fn every_tracked_seed_has_a_contract_case() {
+    assert_corpus_names("aead_envelope", AEAD_CASES.iter().map(|(name, _)| *name));
     assert_corpus_names(
         "encoded_envelope",
         ENCODED_CASES.iter().map(|(name, _)| *name),
@@ -127,6 +207,156 @@ fn every_tracked_seed_has_a_contract_case() {
         TRANSPORT_CASES.iter().map(|(name, ..)| *name),
     );
     assert_corpus_names("typed_headers", TYPED_CASES.iter().map(|(name, ..)| *name));
+}
+
+#[test]
+fn curated_aead_seeds_open_or_reject_as_their_contract_requires() {
+    let open_with = |seed: &[u8]| {
+        let (signature, wrapped_key, cipher) = support::aead_encoded_values(seed);
+        support::aead_client().open_response(ResponseParts::new(
+            [
+                ("X-Fuzz-Response-Signature", signature),
+                ("X-Fuzz-Response-Wrapped-Key", wrapped_key),
+                (
+                    "X-Fuzz-Response-Remote-Signing-Certificate",
+                    "fuzz-certificate".to_owned(),
+                ),
+            ],
+            cipher,
+        ))
+    };
+
+    assert_eq!(
+        open_with(AEAD_FULL_VALID).expect("full valid AEAD seed opens"),
+        support::VALID_PLAINTEXT
+    );
+    for (name, seed) in AEAD_CASES {
+        if *name == "full_valid_open" {
+            continue;
+        }
+        assert!(open_with(seed).is_err(), "{name} must be rejected");
+    }
+}
+
+#[test]
+fn curated_aead_mutation_seeds_change_their_named_frame_regions() {
+    let valid_cipher = &support::aead_valid_envelope().cipher;
+    let valid = STANDARD
+        .decode(valid_cipher)
+        .expect("valid AEAD cipher is Base64");
+    assert_eq!(valid.len(), 43, "fixture frame length");
+
+    for (name, seed, selector, expected_changed_bytes) in [
+        (
+            "cryptographic_mutation_nonce",
+            include_bytes!("../corpus/aead_envelope/cryptographic_mutation_nonce").as_slice(),
+            8,
+            &[6][..],
+        ),
+        (
+            "cryptographic_mutation_cipher",
+            include_bytes!("../corpus/aead_envelope/cryptographic_mutation_cipher").as_slice(),
+            20,
+            &[15][..],
+        ),
+        (
+            "cryptographic_mutation_tag",
+            include_bytes!("../corpus/aead_envelope/cryptographic_mutation_tag").as_slice(),
+            40,
+            &[30][..],
+        ),
+    ] {
+        let (_, _, cipher) = support::aead_encoded_values(seed);
+        let changed_base64_positions = valid_cipher
+            .bytes()
+            .zip(cipher.bytes())
+            .enumerate()
+            .filter_map(|(offset, (before, after))| (before != after).then_some(offset))
+            .collect::<Vec<_>>();
+        assert_eq!(changed_base64_positions, [selector], "{name}");
+        let mutated = STANDARD.decode(cipher).expect("mutated cipher is Base64");
+        let changed = valid
+            .iter()
+            .zip(mutated)
+            .enumerate()
+            .filter_map(|(offset, (before, after))| (before != &after).then_some(offset))
+            .collect::<Vec<_>>();
+        assert_eq!(changed, expected_changed_bytes, "{name}");
+    }
+}
+
+#[test]
+fn curated_aead_boundary_seeds_reach_literal_auxiliary_and_cipher_limits() {
+    assert_eq!(support::AEAD_FRAME_OVERHEAD_BYTES, 30);
+    assert_eq!(support::AEAD_CIPHER_LIMIT, 128);
+
+    let valid = support::aead_valid_envelope();
+    for (name, seed, field, expected_len) in [
+        (
+            "signature_limit_minus_one",
+            include_bytes!("../corpus/aead_envelope/signature_limit_minus_one").as_slice(),
+            0,
+            16_383,
+        ),
+        (
+            "signature_limit",
+            include_bytes!("../corpus/aead_envelope/signature_limit").as_slice(),
+            0,
+            16_384,
+        ),
+        (
+            "signature_limit_plus_one",
+            include_bytes!("../corpus/aead_envelope/signature_limit_plus_one").as_slice(),
+            0,
+            16_385,
+        ),
+        (
+            "wrapped_key_limit_minus_one",
+            include_bytes!("../corpus/aead_envelope/wrapped_key_limit_minus_one").as_slice(),
+            1,
+            16_383,
+        ),
+        (
+            "wrapped_key_limit",
+            include_bytes!("../corpus/aead_envelope/wrapped_key_limit").as_slice(),
+            1,
+            16_384,
+        ),
+        (
+            "wrapped_key_limit_plus_one",
+            include_bytes!("../corpus/aead_envelope/wrapped_key_limit_plus_one").as_slice(),
+            1,
+            16_385,
+        ),
+        (
+            "cipher_limit_minus_one",
+            include_bytes!("../corpus/aead_envelope/cipher_limit_minus_one").as_slice(),
+            2,
+            127,
+        ),
+        (
+            "cipher_limit",
+            include_bytes!("../corpus/aead_envelope/cipher_limit").as_slice(),
+            2,
+            128,
+        ),
+        (
+            "cipher_limit_plus_one",
+            include_bytes!("../corpus/aead_envelope/cipher_limit_plus_one").as_slice(),
+            2,
+            129,
+        ),
+    ] {
+        let values = support::aead_encoded_values(seed);
+        let actual = [&values.0, &values.1, &values.2];
+        assert_eq!(actual[field].len(), expected_len, "{name}");
+        for unchanged in 0..3 {
+            if unchanged != field {
+                let expected = [&valid.signature, &valid.wrapped_session_key, &valid.cipher];
+                assert_eq!(actual[unchanged], expected[unchanged], "{name}");
+            }
+        }
+    }
 }
 
 #[test]

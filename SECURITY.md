@@ -14,7 +14,7 @@ You should receive an acknowledgement within 7 days. Please allow a reasonable e
 
 | Version | Supported |
 | ------- | --------- |
-| 0.1.x (unreleased) | Yes — latest commit on `main` only |
+| 0.2.x (unreleased) | Yes — latest commit on `main` only |
 
 Until a stable release exists, fixes land on `main` and are not backported.
 

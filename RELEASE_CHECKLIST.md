@@ -1,4 +1,4 @@
-# 0.1.0 Release Candidate External Gate Checklist
+# 0.2.0 Release Candidate External Gate Checklist
 
 **Template version:** 1
 

@@ -39,11 +39,44 @@ Lengths count bytes. The domain is fixed in immutable client configuration, whil
 
 `ClientConfig::iv` is a fixed SM4-CBC IV only for compatibility with an existing legacy wire. A fixed CBC IV is deterministic under key reuse and can reveal plaintext-prefix equality; generating a fresh session key for each envelope narrows that exposure but does not turn this construction into a modern authenticated-encryption design. `ContextBound` expands only what the signature authenticates. It does not replace CBC, repair fixed-IV or mode-leakage risks, or provide nonce/IV misuse resistance.
 
-Do not copy this fixed-IV CBC design into a new protocol. A new protocol should use a reviewed AEAD construction with a unique nonce or IV for every message. This crate does not provide an AEAD envelope profile.
+Do not copy this fixed-IV CBC design into a new protocol. New integrations should enable the opt-in `aead` feature and select the SM4-GCM envelope mode described under "Choosing an envelope mode"; without that feature this crate provides no AEAD envelope profile.
 
 `AuthenticationMode::LegacyPlaintext` exists only for legacy compatibility. Its SM2 signature covers plaintext alone; it does not authenticate envelope metadata or transport headers. A deployment using this mode must use authenticated TLS and must implement application-level replay protection and request/response correlation.
 
 Because the legacy wire signature covers plaintext, opening a legacy envelope necessarily decrypts before signature verification. The crate returns the unified `Error::InvalidEnvelope` for malformed or unauthenticated cryptographic input, but that error unification does not eliminate timing differences. Callers must not turn failure categories, response bodies, logging detail, retry behavior, or timing into externally observable distinctions.
+
+## Choosing an envelope mode
+
+The envelope mode is pinned by `ClientConfig` and never inferred from incoming bytes: there is no negotiation and no fallback, and a client rejects envelopes of the other mode outright. `AuthenticationMode` (what the SM2 signature covers) is an independent axis and composes with both modes.
+
+| | `EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm)` — feature `aead` | `EnvelopeMode::LegacyCbc` — default |
+| --- | --- | --- |
+| Payload cipher | SM4-GCM with a fresh random 12-byte nonce per envelope | SM4-CBC with the configured fixed IV |
+| Ciphertext integrity | AEAD tag, verified before any plaintext is produced | none from the cipher; only the SM2 signature, after decryption |
+| Bound metadata | frame header always; domain separator and protocol context under `ContextBound` (empty fields under `LegacyPlaintext`), all in the AAD | signed transcript only |
+| Replay protection | none — application concern | none — application concern |
+| Intended use | new integrations | existing deployed wires, supported indefinitely |
+
+The SM2 signature remains mandatory under AEAD: the session key is encrypted to a public key, so the tag alone proves nothing about who sealed the envelope. An AEAD configuration must not set `iv`:
+
+```no_run
+# #[cfg(feature = "aead")] {
+use gmcrypto_envelope_lite::{AeadAlgorithm, AuthenticationMode, ClientConfig, EnvelopeMode};
+
+let config = ClientConfig::builder()
+    .local_identity_id("demo-client")
+    .api_version("example-v1")
+    .local_certificate_id("example-local-signing-certificate")
+    .expected_remote_signing_certificate_id("example-remote-signing-certificate")
+    .remote_encryption_certificate_id("example-remote-encryption-certificate")
+    .local_signer_id(b"demo-local-signer")
+    .expected_remote_signer_id(b"demo-remote-signer")
+    .authentication_mode(AuthenticationMode::LegacyPlaintext)
+    .envelope_mode(EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm))
+    .build();
+assert!(config.is_ok());
+# }
+```
 
 ## Constructing a client
 
@@ -165,7 +198,7 @@ Removing sensitive material from the current tree does not remove it from Git hi
 
 ## Release status
 
-Version 0.1.0 is a release candidate: publishing is enabled in the manifest, and publication happens only after the external gates in the release checklist pass. Repository checks can produce an immutable `rc-built` artifact set containing the source export, Cargo package, manifest, and checksums for one exact commit.
+Version 0.2.0 is unreleased and in development; the 0.1.0 release-candidate artifact set remains recorded at promotion state rc-built. Publishing is enabled in the manifest, and publication happens only after the external gates in the release checklist pass. Repository checks can produce an immutable `rc-built` artifact set containing the source export, Cargo package, manifest, and checksums for one exact commit.
 
 `rc-built` is evidence of repository gate completion, not approval for private exact-wire compatibility, independent security review, legal approval, production deployment, or publication. The blank [release checklist](RELEASE_CHECKLIST.md) defines those external states and is deliberately excluded from the Cargo package.
 
