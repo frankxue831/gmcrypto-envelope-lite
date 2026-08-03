@@ -2,8 +2,8 @@
 
 mod support;
 
-use libfuzzer_sys::fuzz_target;
 use gmcrypto_envelope_lite::ProtocolAdapter;
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     let scenario = support::transport_scenario(data);

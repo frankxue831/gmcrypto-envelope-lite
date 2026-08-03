@@ -1,0 +1,5 @@
+# Fuzz corpus seeds are exact byte sequences, not text. Without this, Git's
+# end-of-line normalization rewrites CRLF to LF on commit, which silently
+# destroys the seeds that exist to exercise CR and LF handling and leaves their
+# length prefixes describing a payload that is one byte shorter than declared.
+fuzz/corpus/** -text -diff

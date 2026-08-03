@@ -2,8 +2,8 @@
 
 mod support;
 
-use libfuzzer_sys::fuzz_target;
 use gmcrypto_envelope_lite::ResponseParts;
+use libfuzzer_sys::fuzz_target;
 
 const FULL_VALID: &[u8] = include_bytes!("../corpus/encoded_envelope/full_valid_open");
 
