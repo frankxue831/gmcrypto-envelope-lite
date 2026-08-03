@@ -310,6 +310,65 @@ mod tests {
     }
 
     #[test]
+    fn plaintext_length_sweep_round_trips_across_block_and_base64_boundaries() {
+        // Every other round-trip test picks one arbitrary length, which leaves
+        // the boundaries where this construction actually changes behaviour
+        // untested: PKCS#7 appends a whole extra block at an exact multiple of
+        // 16, and Base64 pads differently for each length mod 3. Gate #1 runs
+        // this suite against candidate `gmcrypto-core` releases, so a padding
+        // or encoding regression that only appears at a boundary has to fail
+        // here rather than reach a release.
+        const LENGTHS: &[usize] = &[
+            0, 1, 2, 3, 4, 5, // empty, and each Base64 group alignment
+            15, 16, 17, // one SM4 block; 16 is the full-pad-block case
+            31, 32, 33, // two blocks
+            47, 48, 49, // three blocks
+            63, 64, 65, 255, 256, 257, 1023, 1024, 1025,
+        ];
+
+        let cases = [
+            (AuthenticationMode::LegacyPlaintext, legacy_context()),
+            (
+                AuthenticationMode::context_bound(b"example/sweep/v1")
+                    .expect("nonempty domain separator"),
+                AuthenticationContext::context_bound(b"operation=sweep").expect("bound context"),
+            ),
+        ];
+
+        for (mode, context) in cases {
+            let peers = peers(mode, 2048);
+            for &length in LENGTHS {
+                // Position-dependent bytes: a truncation, block reorder, or
+                // off-by-one that a constant payload would hide changes the
+                // compared value here.
+                let plaintext: Vec<u8> = (0..length).map(|index| (index % 251) as u8).collect();
+
+                let envelope = seal(
+                    &peers.sender_config,
+                    &peers.sender_keys,
+                    &plaintext,
+                    &context,
+                )
+                .unwrap_or_else(|error| panic!("seal {length} bytes: {error}"));
+
+                let opened = open(
+                    &peers.receiver_config,
+                    &peers.receiver_keys,
+                    &envelope,
+                    &context,
+                )
+                .unwrap_or_else(|error| panic!("open {length} bytes: {error}"));
+
+                assert_eq!(
+                    opened.as_slice(),
+                    plaintext.as_slice(),
+                    "round trip must be exact at {length} bytes"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn every_seal_uses_a_fresh_random_session_key() {
         let peers = peers(AuthenticationMode::LegacyPlaintext, 128);
         let plaintext = b"same payload";
