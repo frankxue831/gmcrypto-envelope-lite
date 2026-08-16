@@ -593,3 +593,48 @@ fn release_checklist_separates_build_approval_and_authorization() {
         assert_eq!(completed_approval_marker(completed_variant), Some("[x]"));
     }
 }
+
+/// Extracts the first whitespace-delimited token that follows `install_prefix`
+/// in a workflow file — the pinned version on a `cargo install <tool> --version
+/// <v> --locked` line.
+fn workflow_pinned_version(workflow: &str, install_prefix: &str) -> String {
+    workflow
+        .lines()
+        .find_map(|line| line.split_once(install_prefix))
+        .map(|(_, rest)| rest)
+        .unwrap_or_else(|| panic!("workflow is missing an install line for {install_prefix:?}"))
+        .split_whitespace()
+        .next()
+        .unwrap_or_else(|| panic!("no version token after {install_prefix:?}"))
+        .to_owned()
+}
+
+#[test]
+fn contributing_tooling_pins_match_the_release_workflows() {
+    let contributing = repository_file("CONTRIBUTING.md");
+    let ci = repository_file(".github/workflows/ci.yml");
+
+    // cargo-fuzz drifted here once: CONTRIBUTING pinned 0.13.1 while every
+    // executable source pinned 0.13.2. Derive the truth from the workflow
+    // install line and require CONTRIBUTING to quote the same version, so the
+    // guidance cannot silently fall behind the pin it documents again.
+    let cargo_fuzz = workflow_pinned_version(&ci, "cargo install cargo-fuzz --version ");
+    assert!(
+        contributing.contains(&format!("cargo-fuzz {cargo_fuzz}")),
+        "CONTRIBUTING must pin cargo-fuzz {cargo_fuzz} to match .github/workflows/ci.yml"
+    );
+
+    // The rest of the pinned tool set and toolchains, validated as markers so
+    // the release-readiness section stays complete alongside the gates it
+    // describes.
+    assert_markers(
+        &contributing,
+        &[
+            "cargo-deny 0.20.2",
+            "cargo-public-api 0.52.0",
+            "actionlint 1.7.12",
+            "Rust 1.85.0",
+            "nightly-2026-05-23",
+        ],
+    );
+}
