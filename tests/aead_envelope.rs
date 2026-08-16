@@ -6,7 +6,7 @@ use gmcrypto_core::sm2::Sm2PrivateKey;
 use gmcrypto_core::{pkcs8, spki};
 use gmcrypto_envelope_lite::{
     AeadAlgorithm, AuthenticationContext, AuthenticationMode, CipherLocation, ClientConfig,
-    ClientConfigBuilder, EnvelopeMode, HeaderProtocolAdapter, HeaderSchema, KeyMaterial,
+    ClientConfigBuilder, EnvelopeMode, Error, HeaderProtocolAdapter, HeaderSchema, KeyMaterial,
     PrivateKey, PublicKey, ResponseParts, SecureClient,
 };
 
@@ -121,8 +121,14 @@ fn aead_and_cbc_secure_clients_reject_each_other_s_envelopes() {
     let context = AuthenticationContext::legacy();
 
     let aead_envelope = aead.seal(b"aead payload", &context).expect("AEAD seal");
-    assert!(cbc.open(&aead_envelope, &context).is_err());
+    assert!(matches!(
+        cbc.open(&aead_envelope, &context),
+        Err(Error::InvalidEnvelope)
+    ));
 
     let cbc_envelope = cbc.seal(b"cbc payload", &context).expect("CBC seal");
-    assert!(aead.open(&cbc_envelope, &context).is_err());
+    assert!(matches!(
+        aead.open(&cbc_envelope, &context),
+        Err(Error::InvalidEnvelope)
+    ));
 }
