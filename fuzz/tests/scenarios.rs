@@ -10,6 +10,28 @@ use gmcrypto_envelope_lite::{Error, ProtocolAdapter, RequestParts, ResponseParts
 
 use support::ScenarioOutcome::{Accepted, Rejected};
 
+// Envelope seeds run through crypto, so each declares not just accept/reject but
+// — for a rejection — which public error category it must reach. A blanket
+// `is_err()` let a seed pass for the wrong reason: a boundary probe rejected as
+// malformed instead of over-limit, or `reserved_ccm_algorithm` rejected anywhere
+// at all rather than at the frame's algorithm byte. `Category::MessageTooLarge`
+// also pins the public limit so a bound cannot silently move.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Expect {
+    Opens,
+    Rejected(Category),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Category {
+    InvalidEnvelope,
+    MessageTooLarge { limit: usize },
+}
+
+const OPENS: Expect = Expect::Opens;
+const BAD_ENVELOPE: Expect = Expect::Rejected(Category::InvalidEnvelope);
+const TOO_LARGE: Expect = Expect::Rejected(Category::MessageTooLarge { limit: 64 });
+
 const FULL_VALID_OPEN: &[u8] = include_bytes!("../corpus/encoded_envelope/full_valid_open");
 const AEAD_FULL_VALID: &[u8] = include_bytes!("../corpus/aead_envelope/full_valid_open");
 const RAW_MALFORMED: &[u8] = include_bytes!("../corpus/encoded_envelope/raw_malformed");
@@ -21,132 +43,162 @@ const HEADER_CIPHER_CRLF: &[u8] =
     include_bytes!("../corpus/transport_parts/header_cipher_generic_value_crlf_injection");
 const TYPED_CRLF: &[u8] = include_bytes!("../corpus/typed_headers/generic_value_crlf_injection");
 
-const ENCODED_CASES: &[(&str, &[u8])] = &[
+const ENCODED_CASES: &[(&str, &[u8], Expect)] = &[
     (
         "cipher_limit",
         include_bytes!("../corpus/encoded_envelope/cipher_limit"),
+        BAD_ENVELOPE,
     ),
     (
         "cipher_limit_minus_one",
         include_bytes!("../corpus/encoded_envelope/cipher_limit_minus_one"),
+        BAD_ENVELOPE,
     ),
     (
         "cipher_limit_plus_one",
         include_bytes!("../corpus/encoded_envelope/cipher_limit_plus_one"),
+        TOO_LARGE,
     ),
     (
         "cryptographic_mutation_cipher",
         include_bytes!("../corpus/encoded_envelope/cryptographic_mutation_cipher"),
+        BAD_ENVELOPE,
     ),
     (
         "cryptographic_mutation_signature",
         include_bytes!("../corpus/encoded_envelope/cryptographic_mutation_signature"),
+        BAD_ENVELOPE,
     ),
     (
         "cryptographic_mutation_wrapped_key",
         include_bytes!("../corpus/encoded_envelope/cryptographic_mutation_wrapped_key"),
+        BAD_ENVELOPE,
     ),
-    ("full_valid_open", FULL_VALID_OPEN),
-    ("raw_malformed", RAW_MALFORMED),
+    ("full_valid_open", FULL_VALID_OPEN, OPENS),
+    ("raw_malformed", RAW_MALFORMED, BAD_ENVELOPE),
     (
         "signature_limit",
         include_bytes!("../corpus/encoded_envelope/signature_limit"),
+        BAD_ENVELOPE,
     ),
     (
         "signature_limit_minus_one",
         include_bytes!("../corpus/encoded_envelope/signature_limit_minus_one"),
+        BAD_ENVELOPE,
     ),
     (
         "signature_limit_plus_one",
         include_bytes!("../corpus/encoded_envelope/signature_limit_plus_one"),
+        BAD_ENVELOPE,
     ),
     (
         "wrapped_key_limit",
         include_bytes!("../corpus/encoded_envelope/wrapped_key_limit"),
+        BAD_ENVELOPE,
     ),
     (
         "wrapped_key_limit_minus_one",
         include_bytes!("../corpus/encoded_envelope/wrapped_key_limit_minus_one"),
+        BAD_ENVELOPE,
     ),
     (
         "wrapped_key_limit_plus_one",
         include_bytes!("../corpus/encoded_envelope/wrapped_key_limit_plus_one"),
+        BAD_ENVELOPE,
     ),
 ];
 
-const AEAD_CASES: &[(&str, &[u8])] = &[
+const AEAD_CASES: &[(&str, &[u8], Expect)] = &[
     (
         "cipher_limit",
         include_bytes!("../corpus/aead_envelope/cipher_limit"),
+        BAD_ENVELOPE,
     ),
     (
         "cipher_limit_minus_one",
         include_bytes!("../corpus/aead_envelope/cipher_limit_minus_one"),
+        BAD_ENVELOPE,
     ),
     (
         "cipher_limit_plus_one",
         include_bytes!("../corpus/aead_envelope/cipher_limit_plus_one"),
+        TOO_LARGE,
     ),
     (
         "cryptographic_mutation_cipher",
         include_bytes!("../corpus/aead_envelope/cryptographic_mutation_cipher"),
+        BAD_ENVELOPE,
     ),
     (
         "cryptographic_mutation_nonce",
         include_bytes!("../corpus/aead_envelope/cryptographic_mutation_nonce"),
+        BAD_ENVELOPE,
     ),
     (
         "cryptographic_mutation_signature",
         include_bytes!("../corpus/aead_envelope/cryptographic_mutation_signature"),
+        BAD_ENVELOPE,
     ),
     (
         "cryptographic_mutation_tag",
         include_bytes!("../corpus/aead_envelope/cryptographic_mutation_tag"),
+        BAD_ENVELOPE,
     ),
     (
         "cryptographic_mutation_wrapped_key",
         include_bytes!("../corpus/aead_envelope/cryptographic_mutation_wrapped_key"),
+        BAD_ENVELOPE,
     ),
     (
         "frame_floor",
         include_bytes!("../corpus/aead_envelope/frame_floor"),
+        BAD_ENVELOPE,
     ),
     (
         "frame_floor_minus_one",
         include_bytes!("../corpus/aead_envelope/frame_floor_minus_one"),
+        BAD_ENVELOPE,
     ),
-    ("full_valid_open", AEAD_FULL_VALID),
+    ("full_valid_open", AEAD_FULL_VALID, OPENS),
     (
         "raw_malformed",
         include_bytes!("../corpus/aead_envelope/raw_malformed"),
+        BAD_ENVELOPE,
     ),
     (
         "reserved_ccm_algorithm",
         include_bytes!("../corpus/aead_envelope/reserved_ccm_algorithm"),
+        BAD_ENVELOPE,
     ),
     (
         "signature_limit",
         include_bytes!("../corpus/aead_envelope/signature_limit"),
+        BAD_ENVELOPE,
     ),
     (
         "signature_limit_minus_one",
         include_bytes!("../corpus/aead_envelope/signature_limit_minus_one"),
+        BAD_ENVELOPE,
     ),
     (
         "signature_limit_plus_one",
         include_bytes!("../corpus/aead_envelope/signature_limit_plus_one"),
+        BAD_ENVELOPE,
     ),
     (
         "wrapped_key_limit",
         include_bytes!("../corpus/aead_envelope/wrapped_key_limit"),
+        BAD_ENVELOPE,
     ),
     (
         "wrapped_key_limit_minus_one",
         include_bytes!("../corpus/aead_envelope/wrapped_key_limit_minus_one"),
+        BAD_ENVELOPE,
     ),
     (
         "wrapped_key_limit_plus_one",
         include_bytes!("../corpus/aead_envelope/wrapped_key_limit_plus_one"),
+        BAD_ENVELOPE,
     ),
 ];
 
@@ -485,10 +537,10 @@ const TYPED_GENERIC_CASES: &[(&str, &[u8], support::ScenarioOutcome)] = &[
 
 #[test]
 fn every_tracked_seed_has_a_contract_case() {
-    assert_corpus_names("aead_envelope", AEAD_CASES.iter().map(|(name, _)| *name));
+    assert_corpus_names("aead_envelope", AEAD_CASES.iter().map(|(name, ..)| *name));
     assert_corpus_names(
         "encoded_envelope",
-        ENCODED_CASES.iter().map(|(name, _)| *name),
+        ENCODED_CASES.iter().map(|(name, ..)| *name),
     );
     assert_corpus_names(
         "transport_parts",
@@ -610,15 +662,8 @@ fn curated_aead_seeds_open_or_reject_as_their_contract_requires() {
         ))
     };
 
-    assert_eq!(
-        open_with(AEAD_FULL_VALID).expect("full valid AEAD seed opens"),
-        support::VALID_PLAINTEXT
-    );
-    for (name, seed) in AEAD_CASES {
-        if *name == "full_valid_open" {
-            continue;
-        }
-        assert!(open_with(seed).is_err(), "{name} must be rejected");
+    for (name, seed, expect) in AEAD_CASES {
+        assert_contract(name, *expect, open_with(seed));
     }
 }
 
@@ -1024,53 +1069,14 @@ fn curated_boundary_seeds_reach_exact_auxiliary_and_cipher_limits() {
 }
 
 #[test]
-fn encoded_boundaries_return_public_safe_error_categories() {
-    for (name, seed) in [
-        (
-            "signature_limit_minus_one",
-            include_bytes!("../corpus/encoded_envelope/signature_limit_minus_one").as_slice(),
-        ),
-        (
-            "signature_limit",
-            include_bytes!("../corpus/encoded_envelope/signature_limit").as_slice(),
-        ),
-        (
-            "signature_limit_plus_one",
-            include_bytes!("../corpus/encoded_envelope/signature_limit_plus_one").as_slice(),
-        ),
-        (
-            "wrapped_key_limit_minus_one",
-            include_bytes!("../corpus/encoded_envelope/wrapped_key_limit_minus_one").as_slice(),
-        ),
-        (
-            "wrapped_key_limit",
-            include_bytes!("../corpus/encoded_envelope/wrapped_key_limit").as_slice(),
-        ),
-        (
-            "wrapped_key_limit_plus_one",
-            include_bytes!("../corpus/encoded_envelope/wrapped_key_limit_plus_one").as_slice(),
-        ),
-        (
-            "cipher_limit_minus_one",
-            include_bytes!("../corpus/encoded_envelope/cipher_limit_minus_one").as_slice(),
-        ),
-        (
-            "cipher_limit",
-            include_bytes!("../corpus/encoded_envelope/cipher_limit").as_slice(),
-        ),
-    ] {
-        assert!(
-            matches!(open_encoded(seed), Err(Error::InvalidEnvelope)),
-            "{name}"
-        );
+fn curated_encoded_seeds_open_or_reject_as_their_contract_requires() {
+    // Supersedes the former per-boundary category test: every encoded seed now
+    // declares its open() outcome in ENCODED_CASES, so the full valid seed, the
+    // mutation seeds (previously never asserted rejected), raw_malformed, and the
+    // auxiliary/cipher boundary probes are all pinned here, categories included.
+    for (name, seed, expect) in ENCODED_CASES {
+        assert_contract(name, *expect, open_encoded(seed));
     }
-
-    assert!(matches!(
-        open_encoded(include_bytes!(
-            "../corpus/encoded_envelope/cipher_limit_plus_one"
-        )),
-        Err(Error::MessageTooLarge { limit: 64 })
-    ));
 }
 
 #[test]
@@ -1126,6 +1132,24 @@ fn assert_corpus_names<'a>(target: &str, names: impl IntoIterator<Item = &'a str
     let mut expected = names.into_iter().map(str::to_owned).collect::<Vec<_>>();
     expected.sort();
     assert_eq!(actual, expected, "{target}");
+}
+
+/// Asserts an envelope seed reached exactly the outcome its contract declares,
+/// including — for a rejection — the public error category. Mapping the result
+/// back into an `Expect` gives a single, exhaustive comparison and a precise
+/// panic on any mismatch (wrong category, opened-but-wrong-plaintext, or an
+/// unexpected error kind).
+fn assert_contract(name: &str, expect: Expect, result: gmcrypto_envelope_lite::Result<Vec<u8>>) {
+    let actual = match &result {
+        Ok(plaintext) if plaintext.as_slice() == support::VALID_PLAINTEXT => Expect::Opens,
+        Ok(_) => panic!("{name}: opened, but not to the valid plaintext"),
+        Err(Error::InvalidEnvelope) => Expect::Rejected(Category::InvalidEnvelope),
+        Err(Error::MessageTooLarge { limit }) => {
+            Expect::Rejected(Category::MessageTooLarge { limit: *limit })
+        }
+        Err(other) => panic!("{name}: unexpected error category {other:?}"),
+    };
+    assert_eq!(actual, expect, "{name}");
 }
 
 fn with_byte(seed: &[u8], index: usize, value: u8) -> Vec<u8> {
