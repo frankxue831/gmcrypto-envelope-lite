@@ -164,6 +164,7 @@ run_checker() {
         FAKE_NESTED_MARKER="$nested_marker" FAKE_NESTED_RUSTC_MARKER="$nested_rustc_marker" \
         FAKE_PINNED_RUSTC_MARKER="$pinned_rustc_marker" \
         FAKE_RUSTUP_MARKER="$rustup_marker" TMPDIR="$fixture/tmp" \
+        FUZZ_SEED="${RUN_FUZZ_SEED:-}" \
         "$shell_under_test" "$fixture/ci/fuzz-smoke.sh" "$@" >"$fixture/$case_name.out" 2>"$fixture/$case_name.err"
 }
 
@@ -240,9 +241,29 @@ test "$(cat "$fixture/extended.events")" = "$(printf '%s\n' scenario fuzz:transp
     fail "scenario contracts did not run exactly once before all extended targets"
 test "$(grep -Fxc "nightly-2026-05-23|$fixture/pinned-bin/cargo|test" "$fixture/extended.toolchain")" -eq 1 || \
     fail "extended scenario contracts did not use the absolute pinned Cargo and declared toolchain exactly once"
-contains "$fixture/extended.log" "-max_total_time=100 -seed=424242 -max_len=4096 -rss_limit_mb=512 -timeout=5"
+# The weekly run uses the longer budget and no longer re-walks the fixed smoke
+# seed. Without an override its seed comes from the date, so pin the option
+# order and that it rotated off 424242 rather than the exact value.
+contains "$fixture/extended.log" "-max_total_time=300 -seed="
+grep -F -- "-seed=424242" "$fixture/extended.log" >/dev/null && fail "extended did not rotate off the fixed smoke seed"
+grep -E -- "-seed=[1-9][0-9]* -max_len=4096 -rss_limit_mb=512 -timeout=5$" "$fixture/extended.log" >/dev/null || \
+    fail "extended seed was not a positive integer in the expected option order"
+contains "$fixture/extended.out" "extended fuzz seed:"
 grep -F -- "-runs=" "$fixture/extended.log" >/dev/null && fail "extended unexpectedly used runs"
 test "$(wc -l <"$fixture/extended.log")" -eq 4 || fail "expected four extended targets"
+
+# A supplied FUZZ_SEED makes the weekly run reproducible: the exact seed reaches
+# every target's option line and is echoed for replay.
+RUN_FUZZ_SEED=424243
+run_checker extended_seeded "$fixture/ambient-stable" extended || {
+    cat "$fixture/extended_seeded.err" >&2
+    fail "seeded extended"
+}
+RUN_FUZZ_SEED=
+contains "$fixture/extended_seeded.log" "-max_total_time=300 -seed=424243 -max_len=4096 -rss_limit_mb=512 -timeout=5"
+test "$(grep -Fc -- "-seed=424243" "$fixture/extended_seeded.log")" -eq 4 || \
+    fail "supplied FUZZ_SEED did not reach every extended target"
+contains "$fixture/extended_seeded.out" "extended fuzz seed: 424243"
 
 contains "$repo_root/fuzz/corpus/encoded_envelope/full_valid_open" "vvv000|0:|0:|0:"
 contains "$repo_root/fuzz/corpus/aead_envelope/full_valid_open" "vvv000|0:|0:|0:"

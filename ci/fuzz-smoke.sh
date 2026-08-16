@@ -97,10 +97,30 @@ run_root=$(mktemp -d "${TMPDIR:-/tmp}/secure-envelope-fuzz-run.XXXXXX") || \
 
 case "$mode" in
     smoke)
+        # The per-PR gate stays deterministic: a fixed seed and run budget so a
+        # smoke failure is always reproducible from the same input.
         set -- -runs=256 -seed=424242 -max_len=4096 -rss_limit_mb=512 -timeout=5
         ;;
     extended)
-        set -- -max_total_time=100 -seed=424242 -max_len=4096 -rss_limit_mb=512 -timeout=5
+        # The weekly cron rotates its seed so it explores a fresh path each run
+        # instead of re-walking one fixed sequence forever, while staying
+        # reproducible: the seed is FUZZ_SEED when set, else the CI run id
+        # (unique and recorded per run), else the date, and is always echoed so
+        # a crash can be replayed with FUZZ_SEED=<n>. It is never 0, which
+        # libFuzzer reads as "pick a random seed" and would make a run
+        # irreproducible. The per-target budget is longer than smoke's and is
+        # overridable with FUZZ_MAX_TOTAL_TIME.
+        if [ -n "${FUZZ_SEED:-}" ]; then
+            fuzz_seed=$FUZZ_SEED
+        elif [ -n "${GITHUB_RUN_ID:-}" ]; then
+            fuzz_seed=$(( GITHUB_RUN_ID % 2147483646 + 1 ))
+        else
+            fuzz_seed=$(date +%Y%m%d)
+        fi
+        test "$fuzz_seed" -gt 0 2>/dev/null || fuzz_seed=1
+        echo "extended fuzz seed: $fuzz_seed (override with FUZZ_SEED=<n>)"
+        set -- -max_total_time="${FUZZ_MAX_TOTAL_TIME:-300}" -seed="$fuzz_seed" \
+            -max_len=4096 -rss_limit_mb=512 -timeout=5
         ;;
 esac
 
