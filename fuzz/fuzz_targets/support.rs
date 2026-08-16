@@ -28,6 +28,11 @@ pub enum TransportScenario {
     Duplicate,
     Unknown,
     Missing,
+    HeaderCipherSuccess,
+    HeaderCipherMissing,
+    HeaderCipherEmpty,
+    HeaderCipherDuplicate,
+    HeaderCipherGeneric,
     Generic,
 }
 
@@ -47,9 +52,15 @@ pub enum ScenarioOutcome {
 impl TransportScenario {
     pub fn expected_outcome(self) -> Option<ScenarioOutcome> {
         match self {
-            Self::Success | Self::Unknown => Some(ScenarioOutcome::Accepted),
-            Self::Duplicate | Self::Missing => Some(ScenarioOutcome::Rejected),
-            Self::Generic => None,
+            Self::Success | Self::Unknown | Self::HeaderCipherSuccess => {
+                Some(ScenarioOutcome::Accepted)
+            }
+            Self::Duplicate
+            | Self::Missing
+            | Self::HeaderCipherMissing
+            | Self::HeaderCipherEmpty
+            | Self::HeaderCipherDuplicate => Some(ScenarioOutcome::Rejected),
+            Self::Generic | Self::HeaderCipherGeneric => None,
         }
     }
 }
@@ -111,6 +122,11 @@ pub fn transport_scenario(data: &[u8]) -> TransportScenario {
         Some(b'D') => TransportScenario::Duplicate,
         Some(b'U') => TransportScenario::Unknown,
         Some(b'M') => TransportScenario::Missing,
+        Some(b'H') => TransportScenario::HeaderCipherSuccess,
+        Some(b'I') => TransportScenario::HeaderCipherMissing,
+        Some(b'E') => TransportScenario::HeaderCipherEmpty,
+        Some(b'J') => TransportScenario::HeaderCipherDuplicate,
+        Some(b'C') => TransportScenario::HeaderCipherGeneric,
         _ => TransportScenario::Generic,
     }
 }
@@ -155,6 +171,41 @@ pub fn generic_transport_parts(data: &[u8]) -> ResponseParts {
     }
 
     ResponseParts::new(headers, text(framed[6]))
+}
+
+pub fn generic_header_cipher_parts(data: &[u8]) -> ResponseParts {
+    let framed = framed::<9>(data);
+    let selectors = data.get(..6).unwrap_or_default();
+    let mut headers = (0..4)
+        .map(|slot| {
+            (
+                header_cipher_name(selectors.get(slot + 1), slot, framed[slot]),
+                text(framed[slot + 4]),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    let packed = selectors.get(5).copied().unwrap_or_default();
+    let order = match packed % 6 {
+        0 => [0, 1, 2, 3],
+        1 => [3, 0, 1, 2],
+        2 => [0, 1, 3, 2],
+        3 => [3, 2, 1, 0],
+        4 => [0, 3, 1, 2],
+        _ => [1, 0, 2, 3],
+    };
+    headers = order
+        .map(|index| headers[index].clone())
+        .into_iter()
+        .collect();
+
+    match packed % 3 {
+        0 => {}
+        1 => headers.push(headers[0].clone()),
+        _ => headers.push((headers[0].0.to_ascii_lowercase(), headers[0].1.clone())),
+    }
+
+    ResponseParts::new(headers, text(framed[8]))
 }
 
 pub fn generic_typed_parts(data: &[u8]) -> gmcrypto_envelope_lite::Result<RequestParts> {
@@ -219,6 +270,46 @@ fn transport_name(selector: Option<&u8>, slot: usize, raw: &[u8]) -> String {
     }
 }
 
+fn header_cipher_name(selector: Option<&u8>, slot: usize, raw: &[u8]) -> String {
+    const CANONICAL: [&str; 4] = [
+        "X-Fuzz-Response-Signature",
+        "X-Fuzz-Response-Wrapped-Key",
+        "X-Fuzz-Response-Remote-Signing-Certificate",
+        "X-Fuzz-Response-Cipher",
+    ];
+    const MIXED: [&str; 4] = [
+        "X-fUzZ-ReSpOnSe-SiGnAtUrE",
+        "X-fUzZ-ReSpOnSe-WrApPeD-KeY",
+        "X-fUzZ-ReSpOnSe-ReMoTe-SiGnInG-CeRtIfIcAtE",
+        "X-fUzZ-ReSpOnSe-CiPhEr",
+    ];
+    let selector = selector.copied().unwrap_or(b'c');
+    match selector {
+        b'c' => CANONICAL[slot].to_owned(),
+        b'l' => CANONICAL[slot].to_ascii_lowercase(),
+        b'm' => MIXED[slot].to_owned(),
+        b'u' => "X-Fuzz-Unknown".to_owned(),
+        b'e' => String::new(),
+        b'r' => text(raw),
+        b's' => CANONICAL[0].to_owned(),
+        b'w' => CANONICAL[1].to_owned(),
+        b'k' => CANONICAL[2].to_owned(),
+        b'p' => CANONICAL[3].to_owned(),
+        other => match other % 10 {
+            0 => CANONICAL[slot].to_owned(),
+            1 => CANONICAL[slot].to_ascii_lowercase(),
+            2 => MIXED[slot].to_owned(),
+            3 => "X-Fuzz-Unknown".to_owned(),
+            4 => String::new(),
+            5 => text(raw),
+            6 => CANONICAL[0].to_owned(),
+            7 => CANONICAL[1].to_owned(),
+            8 => CANONICAL[2].to_owned(),
+            _ => CANONICAL[3].to_owned(),
+        },
+    }
+}
+
 fn typed_name(selector: Option<&u8>, slot: usize, raw: &[u8]) -> String {
     const CANONICAL: [&str; 2] = ["X-Fuzz-Header", "X-Fuzz-Other"];
     const MIXED: [&str; 2] = ["X-fUzZ-HeAdEr", "X-fUzZ-OtHeR"];
@@ -243,27 +334,29 @@ fn typed_name(selector: Option<&u8>, slot: usize, raw: &[u8]) -> String {
     }
 }
 
+fn fuzz_schema_builder() -> gmcrypto_envelope_lite::HeaderSchemaBuilder {
+    HeaderSchema::builder()
+        .static_request_header("Content-Type", "application/fuzz+octets")
+        .local_identity_header("X-Fuzz-Local-Identity")
+        .operation_header("X-Fuzz-Operation")
+        .request_id_header("X-Fuzz-Request-Id")
+        .request_time_header("X-Fuzz-Request-Time")
+        .api_version_header("X-Fuzz-Api-Version")
+        .local_certificate_header("X-Fuzz-Local-Certificate")
+        .remote_signing_certificate_header("X-Fuzz-Remote-Signing-Certificate")
+        .remote_encryption_certificate_header("X-Fuzz-Remote-Encryption-Certificate")
+        .request_signature_header("X-Fuzz-Request-Signature")
+        .request_wrapped_key_header("X-Fuzz-Request-Wrapped-Key")
+        .request_cipher(CipherLocation::Body)
+        .response_signature_header("X-Fuzz-Response-Signature")
+        .response_wrapped_key_header("X-Fuzz-Response-Wrapped-Key")
+        .response_remote_signing_certificate_header("X-Fuzz-Response-Remote-Signing-Certificate")
+}
+
 pub fn schema() -> &'static HeaderSchema {
     static SCHEMA: OnceLock<HeaderSchema> = OnceLock::new();
     SCHEMA.get_or_init(|| {
-        HeaderSchema::builder()
-            .static_request_header("Content-Type", "application/fuzz+octets")
-            .local_identity_header("X-Fuzz-Local-Identity")
-            .operation_header("X-Fuzz-Operation")
-            .request_id_header("X-Fuzz-Request-Id")
-            .request_time_header("X-Fuzz-Request-Time")
-            .api_version_header("X-Fuzz-Api-Version")
-            .local_certificate_header("X-Fuzz-Local-Certificate")
-            .remote_signing_certificate_header("X-Fuzz-Remote-Signing-Certificate")
-            .remote_encryption_certificate_header("X-Fuzz-Remote-Encryption-Certificate")
-            .request_signature_header("X-Fuzz-Request-Signature")
-            .request_wrapped_key_header("X-Fuzz-Request-Wrapped-Key")
-            .request_cipher(CipherLocation::Body)
-            .response_signature_header("X-Fuzz-Response-Signature")
-            .response_wrapped_key_header("X-Fuzz-Response-Wrapped-Key")
-            .response_remote_signing_certificate_header(
-                "X-Fuzz-Response-Remote-Signing-Certificate",
-            )
+        fuzz_schema_builder()
             .response_cipher(CipherLocation::Body)
             .legacy_authentication()
             .build()
@@ -271,9 +364,27 @@ pub fn schema() -> &'static HeaderSchema {
     })
 }
 
+pub fn header_cipher_schema() -> &'static HeaderSchema {
+    static SCHEMA: OnceLock<HeaderSchema> = OnceLock::new();
+    SCHEMA.get_or_init(|| {
+        fuzz_schema_builder()
+            .response_cipher(CipherLocation::Header(
+                HeaderName::new("X-Fuzz-Response-Cipher").expect("token header name"),
+            ))
+            .legacy_authentication()
+            .build()
+            .expect("fixed complete header-cipher fuzz schema")
+    })
+}
+
 pub fn adapter() -> &'static HeaderProtocolAdapter {
     static ADAPTER: OnceLock<HeaderProtocolAdapter> = OnceLock::new();
     ADAPTER.get_or_init(|| HeaderProtocolAdapter::new(schema().clone()))
+}
+
+pub fn header_cipher_adapter() -> &'static HeaderProtocolAdapter {
+    static ADAPTER: OnceLock<HeaderProtocolAdapter> = OnceLock::new();
+    ADAPTER.get_or_init(|| HeaderProtocolAdapter::new(header_cipher_schema().clone()))
 }
 
 pub fn transport_outcome(scenario: TransportScenario) -> Option<ScenarioOutcome> {
@@ -317,7 +428,63 @@ pub fn transport_outcome(scenario: TransportScenario) -> Option<ScenarioOutcome>
             [("X-Fuzz-Response-Signature", "signature")],
             "cipher",
         )),
-        TransportScenario::Generic => return None,
+        TransportScenario::HeaderCipherSuccess => {
+            header_cipher_adapter().parse_response(ResponseParts::new(
+                [
+                    ("X-Fuzz-Response-Signature", "signature"),
+                    ("X-Fuzz-Response-Wrapped-Key", "wrapped"),
+                    (
+                        "X-Fuzz-Response-Remote-Signing-Certificate",
+                        "fuzz-certificate",
+                    ),
+                    ("X-Fuzz-Response-Cipher", "cipher"),
+                ],
+                "ignored-body",
+            ))
+        }
+        TransportScenario::HeaderCipherMissing => {
+            header_cipher_adapter().parse_response(ResponseParts::new(
+                [
+                    ("X-Fuzz-Response-Signature", "signature"),
+                    ("X-Fuzz-Response-Wrapped-Key", "wrapped"),
+                    (
+                        "X-Fuzz-Response-Remote-Signing-Certificate",
+                        "fuzz-certificate",
+                    ),
+                ],
+                "ignored-body",
+            ))
+        }
+        TransportScenario::HeaderCipherEmpty => {
+            header_cipher_adapter().parse_response(ResponseParts::new(
+                [
+                    ("X-Fuzz-Response-Signature", "signature"),
+                    ("X-Fuzz-Response-Wrapped-Key", "wrapped"),
+                    (
+                        "X-Fuzz-Response-Remote-Signing-Certificate",
+                        "fuzz-certificate",
+                    ),
+                    ("X-Fuzz-Response-Cipher", ""),
+                ],
+                "ignored-body",
+            ))
+        }
+        TransportScenario::HeaderCipherDuplicate => {
+            header_cipher_adapter().parse_response(ResponseParts::new(
+                [
+                    ("X-Fuzz-Response-Signature", "signature"),
+                    ("X-Fuzz-Response-Wrapped-Key", "wrapped"),
+                    (
+                        "X-Fuzz-Response-Remote-Signing-Certificate",
+                        "fuzz-certificate",
+                    ),
+                    ("X-Fuzz-Response-Cipher", "first"),
+                    ("x-fuzz-response-cipher", "second"),
+                ],
+                "ignored-body",
+            ))
+        }
+        TransportScenario::Generic | TransportScenario::HeaderCipherGeneric => return None,
     };
     Some(if result.is_ok() {
         ScenarioOutcome::Accepted

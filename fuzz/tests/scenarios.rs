@@ -17,6 +17,8 @@ const TRANSPORT_SUCCESS: &[u8] = include_bytes!("../corpus/transport_parts/succe
 const TYPED_VALID: &[u8] = include_bytes!("../corpus/typed_headers/valid_request");
 const TRANSPORT_CRLF: &[u8] =
     include_bytes!("../corpus/transport_parts/generic_value_crlf_injection");
+const HEADER_CIPHER_CRLF: &[u8] =
+    include_bytes!("../corpus/transport_parts/header_cipher_generic_value_crlf_injection");
 const TYPED_CRLF: &[u8] = include_bytes!("../corpus/typed_headers/generic_value_crlf_injection");
 
 const ENCODED_CASES: &[(&str, &[u8])] = &[
@@ -178,6 +180,30 @@ const TRANSPORT_CASES: &[(
         support::TransportScenario::Unknown,
         support::ScenarioOutcome::Accepted,
     ),
+    (
+        "header_cipher_duplicate",
+        include_bytes!("../corpus/transport_parts/header_cipher_duplicate"),
+        support::TransportScenario::HeaderCipherDuplicate,
+        support::ScenarioOutcome::Rejected,
+    ),
+    (
+        "header_cipher_empty",
+        include_bytes!("../corpus/transport_parts/header_cipher_empty"),
+        support::TransportScenario::HeaderCipherEmpty,
+        support::ScenarioOutcome::Rejected,
+    ),
+    (
+        "header_cipher_missing",
+        include_bytes!("../corpus/transport_parts/header_cipher_missing"),
+        support::TransportScenario::HeaderCipherMissing,
+        support::ScenarioOutcome::Rejected,
+    ),
+    (
+        "header_cipher_success",
+        include_bytes!("../corpus/transport_parts/header_cipher_success"),
+        support::TransportScenario::HeaderCipherSuccess,
+        support::ScenarioOutcome::Accepted,
+    ),
 ];
 
 const TYPED_CASES: &[(
@@ -307,6 +333,67 @@ const TRANSPORT_GENERIC_CASES: &[(&str, &[u8], support::ScenarioOutcome)] = &[
     ),
 ];
 
+// Seeds for the header-carried cipher Generic arm. The Body-schema tables
+// above cannot reach `CipherLocation::Header`: `support::schema()` hardcodes
+// Body, so these seeds use a separate 9-field frame and adapter.
+const HEADER_CIPHER_GENERIC_CASES: &[(&str, &[u8], support::ScenarioOutcome)] = &[
+    (
+        "header_cipher_generic_body_ignored",
+        include_bytes!("../corpus/transport_parts/header_cipher_generic_body_ignored"),
+        Accepted,
+    ),
+    (
+        "header_cipher_generic_canonical",
+        include_bytes!("../corpus/transport_parts/header_cipher_generic_canonical"),
+        Accepted,
+    ),
+    (
+        "header_cipher_generic_duplicate_cipher",
+        include_bytes!("../corpus/transport_parts/header_cipher_generic_duplicate_cipher"),
+        Rejected,
+    ),
+    (
+        "header_cipher_generic_empty_cipher_value",
+        include_bytes!("../corpus/transport_parts/header_cipher_generic_empty_cipher_value"),
+        Rejected,
+    ),
+    (
+        "header_cipher_generic_missing_cipher",
+        include_bytes!("../corpus/transport_parts/header_cipher_generic_missing_cipher"),
+        Rejected,
+    ),
+    (
+        "header_cipher_generic_value_crlf_injection",
+        HEADER_CIPHER_CRLF,
+        Rejected,
+    ),
+    (
+        "header_cipher_generic_value_delete",
+        include_bytes!("../corpus/transport_parts/header_cipher_generic_value_delete"),
+        Rejected,
+    ),
+    (
+        "header_cipher_generic_value_nul",
+        include_bytes!("../corpus/transport_parts/header_cipher_generic_value_nul"),
+        Rejected,
+    ),
+    (
+        "header_cipher_generic_value_tab",
+        include_bytes!("../corpus/transport_parts/header_cipher_generic_value_tab"),
+        Accepted,
+    ),
+    (
+        "header_cipher_generic_value_unit_separator",
+        include_bytes!("../corpus/transport_parts/header_cipher_generic_value_unit_separator"),
+        Rejected,
+    ),
+    (
+        "header_cipher_generic_whitespace_cipher_value",
+        include_bytes!("../corpus/transport_parts/header_cipher_generic_whitespace_cipher_value"),
+        Rejected,
+    ),
+];
+
 const TYPED_GENERIC_CASES: &[(&str, &[u8], support::ScenarioOutcome)] = &[
     (
         "generic_canonical",
@@ -408,7 +495,8 @@ fn every_tracked_seed_has_a_contract_case() {
         TRANSPORT_CASES
             .iter()
             .map(|(name, ..)| *name)
-            .chain(TRANSPORT_GENERIC_CASES.iter().map(|(name, ..)| *name)),
+            .chain(TRANSPORT_GENERIC_CASES.iter().map(|(name, ..)| *name))
+            .chain(HEADER_CIPHER_GENERIC_CASES.iter().map(|(name, ..)| *name)),
     );
     assert_corpus_names(
         "typed_headers",
@@ -428,6 +516,12 @@ fn crlf_injection_seeds_still_carry_a_carriage_return() {
     // stripped CR leaves it describing one more byte than the value holds.
     for (target, seed, prefix, length) in [
         ("transport_parts", TRANSPORT_CRLF, &b"|21:"[..], 21),
+        (
+            "transport_parts_header_cipher",
+            HEADER_CIPHER_CRLF,
+            &b"|21:"[..],
+            21,
+        ),
         ("typed_headers", TYPED_CRLF, &b"|24:"[..], 24),
     ] {
         assert!(
@@ -445,6 +539,24 @@ fn crlf_injection_seeds_still_carry_a_carriage_return() {
                 .any(|pair| pair == b"\r\n"),
             "{target}: the declared field length no longer spans the carriage return"
         );
+    }
+}
+
+#[test]
+fn curated_generic_header_cipher_seeds_reach_named_adapter_outcomes() {
+    for (name, seed, expected) in HEADER_CIPHER_GENERIC_CASES {
+        assert_eq!(
+            support::transport_scenario(seed),
+            support::TransportScenario::HeaderCipherGeneric,
+            "{name}"
+        );
+        let outcome = match support::header_cipher_adapter()
+            .parse_response(support::generic_header_cipher_parts(seed))
+        {
+            Ok(_) => Accepted,
+            Err(_) => Rejected,
+        };
+        assert_eq!(outcome, *expected, "{name}");
     }
 }
 
