@@ -14,6 +14,49 @@ use crate::{AuthenticationContext, ClientConfig, Error, KeyMaterial, Result};
 
 const SM4_BLOCK_BYTES: usize = 16;
 
+/// The single place `open` performs SM2 verification.
+///
+/// Every verification is routed through this one function so the tests can pin
+/// the F1 invariant that `open` runs *exactly one* SM2 verification per call,
+/// regardless of which validation step failed. That invariant is what keeps the
+/// CBC failure paths from leaking a padding-oracle timing signal (see the
+/// `open` comment and the module tests).
+fn verify_transcript(
+    keys: &KeyMaterial,
+    config: &ClientConfig,
+    transcript: &[u8],
+    signature: &[u8],
+) -> bool {
+    #[cfg(test)]
+    {
+        record_verify_call();
+    }
+    sm2::verify_with_id(
+        &keys.remote_verification,
+        config.expected_remote_signer_id(),
+        transcript,
+        signature,
+    )
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Per-thread tally of `verify_transcript` calls, so a test can assert the
+    /// exact number of SM2 verifications a single `open` performed.
+    static VERIFY_CALLS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+fn record_verify_call() {
+    VERIFY_CALLS.with(|calls| calls.set(calls.get().saturating_add(1)));
+}
+
+/// Returns the verifications performed since the last call, resetting the tally.
+#[cfg(test)]
+fn take_verify_calls() -> u32 {
+    VERIFY_CALLS.with(|calls| calls.replace(0))
+}
+
 pub(super) fn seal(
     config: &ClientConfig,
     keys: &KeyMaterial,
@@ -75,27 +118,53 @@ pub(super) fn open(
 
     let session_key = unwrap_session_key(keys, &wrapped_session_key)?;
 
-    let plaintext = Zeroizing::new(
-        sm4::mode_cbc::decrypt(&session_key, config.iv(), &cipher).ok_or(Error::InvalidEnvelope)?,
-    );
-    if plaintext.len() > plaintext_limit {
-        return Err(Error::InvalidEnvelope);
-    }
+    // F1 — CBC failure-path cost equalization.
+    //
+    // The SM2 signature covers the *plaintext* transcript, so verification
+    // cannot run before decryption. That used to make padding failure return
+    // here, before the SM2 verify below — and since that verify (two EC scalar
+    // multiplications) dominates this function's cost, the early return was a
+    // network-observable Vaudenay padding oracle in this default CBC mode.
+    //
+    // Now every envelope that unwraps its session key runs *exactly one*
+    // verification. When CBC decryption fails we build the transcript from the
+    // raw ciphertext bytes (same code path; the hashed length differs by at most
+    // one padding block) so the verify still runs with the same shape and cost.
+    //
+    // CRITICAL invariant: the outcome flags are ANDed and `verified` is only
+    // ever one conjunct — it can never alone authorize success. An attacker who
+    // copies the bytes of a legitimately signed plaintext into `cipher` makes
+    // the fallback transcript equal the signed one, so `verified` is true, but
+    // `padding_ok` is false and the envelope is still rejected. Dropping any
+    // conjunct reopens either the oracle or a signature-replay bypass;
+    // `a_signed_cleartext_placed_in_cipher_reaches_verify_yet_is_rejected` and
+    // `open_runs_exactly_one_verification_on_every_post_unwrap_path` pin this.
+    //
+    // Residuals (request-level equalization of the dominant asymmetric op, not a
+    // constant-time claim — see the engineering-evidence map): the wrapped-key
+    // unwrap above still fast-fails, since the core exposes no constant-time
+    // unwrap and probe traffic reuses a valid wrapped key; the key-independent
+    // Base64/length checks fast-fail before it; and the core's internal PKCS#7
+    // check is its own. The AEAD mode is not an oracle — its GCM tag is a real
+    // MAC verified before any plaintext exists.
+    let decrypted = sm4::mode_cbc::decrypt(&session_key, config.iv(), &cipher);
+    let padding_ok = decrypted.is_some();
+    let plaintext = Zeroizing::new(decrypted.unwrap_or_else(|| cipher.clone()));
+    let length_ok = plaintext.len() <= plaintext_limit;
 
     let authentication_input = config
         .authentication_mode()
-        .authentication_input(context, plaintext.as_slice())
-        .map_err(|_| Error::InvalidEnvelope)?;
-    if !sm2::verify_with_id(
-        &keys.remote_verification,
-        config.expected_remote_signer_id(),
-        authentication_input.as_slice(),
-        &signature,
-    ) {
-        return Err(Error::InvalidEnvelope);
-    }
+        .authentication_input(context, plaintext.as_slice());
+    let input_ok = authentication_input.is_ok();
+    let transcript = authentication_input.unwrap_or_else(|_| Zeroizing::new(Vec::new()));
 
-    Ok(plaintext.to_vec())
+    let verified = verify_transcript(keys, config, transcript.as_slice(), &signature);
+
+    if padding_ok && length_ok && input_ok && verified {
+        Ok(plaintext.to_vec())
+    } else {
+        Err(Error::InvalidEnvelope)
+    }
 }
 
 fn padded_cipher_len(plaintext_limit: usize) -> usize {
@@ -121,6 +190,8 @@ mod tests {
     use crate::envelope_crypto::{open, seal};
     use crate::message::SecureEnvelope;
     use crate::{AuthenticationContext, AuthenticationMode, Error};
+
+    use super::take_verify_calls;
 
     #[test]
     fn legacy_exact_plaintext_round_trips_in_both_directions_with_distinct_roles() {
@@ -785,5 +856,175 @@ mod tests {
             &unverified,
             &legacy_context(),
         ));
+    }
+
+    #[test]
+    fn open_runs_exactly_one_verification_on_every_post_unwrap_path() {
+        // F1: from a successful key-unwrap onward, `open` must run exactly one
+        // SM2 verification no matter which later step fails. That verification
+        // is this function's dominant cost, so any path returning *before* it
+        // leaks a padding-oracle timing signal in this default CBC mode. This
+        // test pins the call count on the happy path and on each failure that
+        // can occur after key-unwrap.
+        let peers = peers(AuthenticationMode::LegacyPlaintext, 128);
+        let valid = seal(
+            &peers.sender_config,
+            &peers.sender_keys,
+            &[b'x'; 17],
+            &legacy_context(),
+        )
+        .expect("seal two-block cipher");
+
+        // Happy path: one verification.
+        take_verify_calls();
+        open(
+            &peers.receiver_config,
+            &peers.receiver_keys,
+            &valid,
+            &legacy_context(),
+        )
+        .expect("valid envelope opens");
+        assert_eq!(take_verify_calls(), 1, "a valid open verifies exactly once");
+
+        // Invalid CBC padding: flipping the padding-controlling byte of the
+        // preceding block makes PKCS#7 unpad fail.
+        let mut bad_padding = STANDARD.decode(&valid.cipher).expect("cipher Base64");
+        let previous_block_last_byte = bad_padding.len() - 17;
+        bad_padding[previous_block_last_byte] ^= 0x0f;
+        let bad_padding = SecureEnvelope {
+            cipher: STANDARD.encode(bad_padding),
+            ..valid.clone()
+        };
+        take_verify_calls();
+        assert_invalid_envelope(open(
+            &peers.receiver_config,
+            &peers.receiver_keys,
+            &bad_padding,
+            &legacy_context(),
+        ));
+        assert_eq!(
+            take_verify_calls(),
+            1,
+            "invalid padding must still reach the one verification (F1)"
+        );
+
+        // Valid padding but the plaintext exceeds the opening client's limit: a
+        // 17-byte payload opened by a 16-byte-limit client, which shares the
+        // same directional keys and IV so it decrypts before the length check.
+        let smaller =
+            crate::envelope_crypto::test_support::peers(AuthenticationMode::LegacyPlaintext, 16);
+        take_verify_calls();
+        assert_invalid_envelope(open(
+            &smaller.receiver_config,
+            &smaller.receiver_keys,
+            &valid,
+            &legacy_context(),
+        ));
+        assert_eq!(
+            take_verify_calls(),
+            1,
+            "post-decrypt oversize must still reach the one verification (F1)"
+        );
+
+        // Valid padding and length, tampered signature: this is the one
+        // verification returning false.
+        let mut signature = STANDARD.decode(&valid.signature).expect("signature Base64");
+        let final_byte = signature.len() - 1;
+        signature[final_byte] ^= 1;
+        let bad_signature = SecureEnvelope {
+            signature: STANDARD.encode(signature),
+            ..valid.clone()
+        };
+        take_verify_calls();
+        assert_invalid_envelope(open(
+            &peers.receiver_config,
+            &peers.receiver_keys,
+            &bad_signature,
+            &legacy_context(),
+        ));
+        assert_eq!(
+            take_verify_calls(),
+            1,
+            "a bad signature is the one verification returning false"
+        );
+
+        // Documented residual: a wrapped key that fails to unwrap returns on the
+        // out-of-scope fast path *before* any verification. Equalizing it would
+        // need a constant-time key-unwrap the core does not expose, and the
+        // security model treats probe traffic here as reusing a valid wrapped
+        // key. Pinned so this residual stays a deliberate, visible choice.
+        let unwrappable = SecureEnvelope {
+            wrapped_session_key: STANDARD.encode(b"not an SM2 ciphertext"),
+            ..valid.clone()
+        };
+        take_verify_calls();
+        assert_invalid_envelope(open(
+            &peers.receiver_config,
+            &peers.receiver_keys,
+            &unwrappable,
+            &legacy_context(),
+        ));
+        assert_eq!(
+            take_verify_calls(),
+            0,
+            "unwrap failure is the accepted fast-path residual"
+        );
+    }
+
+    #[test]
+    fn a_signed_cleartext_placed_in_cipher_reaches_verify_yet_is_rejected() {
+        // The F1 fix runs one verification even when CBC decryption fails, using
+        // the raw ciphertext bytes as the transcript. This pins the invariant
+        // that the fallback verification's *result can never authorize success*:
+        // an attacker who copies the bytes of a legitimately signed plaintext
+        // into `cipher` (keeping the matching wrapped key and signature) makes
+        // that fallback verification return true — and must still be rejected,
+        // because the real CBC padding never validated. Dropping the padding
+        // gate would turn this into a signature-replay acceptance.
+        let peers = peers(AuthenticationMode::LegacyPlaintext, 128);
+
+        // Block-misaligned length, so decrypting these bytes as ciphertext fails
+        // deterministically (CBC requires block alignment) and forces the
+        // raw-ciphertext fallback transcript.
+        let signed_plaintext: &[u8] = b"a legitimately signed plaintext, replayed as cleartext";
+        assert_ne!(
+            signed_plaintext.len() % 16,
+            0,
+            "must be block-misaligned for a deterministic decrypt failure"
+        );
+
+        let legitimate = seal(
+            &peers.sender_config,
+            &peers.sender_keys,
+            signed_plaintext,
+            &legacy_context(),
+        )
+        .expect("seal a legitimate envelope");
+
+        // Forge: cipher = the cleartext signed bytes; keep the real wrapped key
+        // (so unwrap yields the true session key) and the real signature.
+        let forged = SecureEnvelope {
+            cipher: STANDARD.encode(signed_plaintext),
+            ..legitimate
+        };
+
+        take_verify_calls();
+        let result = open(
+            &peers.receiver_config,
+            &peers.receiver_keys,
+            &forged,
+            &legacy_context(),
+        );
+
+        // It reached verification (not a pre-verify padding bail) ...
+        assert_eq!(
+            take_verify_calls(),
+            1,
+            "the forged envelope must still reach exactly one verification"
+        );
+        // ... and although the fallback transcript equals the signed plaintext
+        // so that verification returns true, the envelope is rejected because
+        // CBC padding failed.
+        assert_invalid_envelope(result);
     }
 }
