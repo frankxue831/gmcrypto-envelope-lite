@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+
+- The compatibility SM4-CBC open path now runs exactly one SM2 signature verification on every envelope whose session key unwraps — whether or not PKCS#7 padding, the decoded-size bound, or authentication-input construction succeeded. Padding failure previously returned before that verification, and the verification (two EC scalar multiplications) dominates the function's cost, so a padding-invalid input returned measurably sooner: a network-observable Vaudenay padding oracle in the default CBC mode wherever the mandated authenticated-TLS transport was absent. On the decrypt-failure path the transcript is rebuilt from the raw ciphertext so the verification runs with the same shape, and success requires that padding, the length bound, transcript construction, and the verification all hold, so the fallback verification can never on its own accept an envelope — the bytes of a legitimately signed plaintext placed verbatim in `cipher` still reach the verification yet are rejected. This is request-level equalization of the dominant asymmetric operation, not a constant-time claim; the security model still mandates authenticated TLS. The engineering evidence map and the inbound-envelope section of the security model record the equalized path and its residuals.
+
+### Added
+
+- An `encoded_envelope` fuzz seed, `padding_fail_valid_signature`, driving the CBC decrypt-failure path where the raw-ciphertext fallback transcript carries a valid signature yet the envelope must still be rejected — the corpus mirror of the adversarial unit test.
+- A sentinel-redaction test that formats the crate `Error` type itself across five real failure paths (an unopenable envelope, a CRLF-injected header value, a case-insensitive header conflict, a rejected public key, and oversized plaintext) and asserts the planted caller-secret sentinel survives in neither `Display` nor `Debug`.
+
+### Changed
+
+- Every `encoded_envelope` and `aead_envelope` fuzz seed now declares an explicit open outcome and, for a rejection, a public error category (`InvalidEnvelope` or `MessageTooLarge`), asserted through one `assert_contract` helper. This replaces a blanket `is_err()` that let a seed pass for the wrong reason — a boundary probe rejected as malformed instead of over-limit, or `reserved_ccm_algorithm` rejected anywhere at all rather than at the frame's algorithm byte — subsumes the former encoded-boundary category test, and pins the mutation seeds that were never asserted rejected.
+- The weekly extended-fuzz cron derives a per-run libFuzzer seed (an explicit `FUZZ_SEED`, else the unique CI run id, else the date; echoed for replay and never zero) and raises its per-target budget to 300 seconds, so it no longer re-walks the one fixed path the per-PR smoke run uses. The smoke run keeps its fixed seed and run count so the per-PR gate stays deterministic.
+
+### Fixed
+
+- Corrected the CONTRIBUTING cargo-fuzz pin from 0.13.1 to 0.13.2 to match every executable source, and added a release-documents test that derives the pinned version from `.github/workflows/ci.yml` and requires CONTRIBUTING to quote it, so this prose-behind-the-pin drift class is caught structurally.
+
 ## [0.2.0] - 2026-08-16
 
 ### Added

@@ -39,6 +39,8 @@ Under an AEAD envelope mode, plaintext is returned only after encoded-size check
 
 Malformed Base64, key-wrap, unwrapped-key length, padding, ciphertext, and signature failures after strict decoding are reported as `Error::InvalidEnvelope`. This public error unification does not claim identical timing.
 
+In the compatibility SM4-CBC mode, every envelope whose session key unwraps runs exactly one SM2 signature verification regardless of whether padding, the decoded-size bound, or authentication-input construction failed; on decrypt failure the transcript is rebuilt from the raw ciphertext so the verification still runs, and its result can never on its own accept an envelope. This equalizes the dominant asymmetric operation across the CBC failure paths as defense in depth for the required authenticated-TLS transport. It is request-level equalization, not a constant-time claim, and it does not cover the fast paths reached before key unwrap: the encoded-size and Base64 checks, and key-unwrap failure itself.
+
 ### Authentication modes
 
 `AuthenticationMode::LegacyPlaintext` signs only the exact plaintext and exists solely for deployed compatibility. It does not authenticate envelope metadata or transport headers.
