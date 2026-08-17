@@ -75,6 +75,16 @@ const ENCODED_CASES: &[(&str, &[u8], Expect)] = &[
         BAD_ENVELOPE,
     ),
     ("full_valid_open", FULL_VALID_OPEN, OPENS),
+    // F1 padding-oracle equalization: `cipher` carries the cleartext bytes of a
+    // legitimately signed plaintext, so CBC decryption fails (block-misaligned)
+    // yet the raw-ciphertext fallback transcript makes the SM2 verify return
+    // true. The envelope must still be rejected because padding never validated
+    // — the signed-cleartext replay the unit adversarial test also pins.
+    (
+        "padding_fail_valid_signature",
+        include_bytes!("../corpus/encoded_envelope/padding_fail_valid_signature"),
+        BAD_ENVELOPE,
+    ),
     ("raw_malformed", RAW_MALFORMED, BAD_ENVELOPE),
     (
         "signature_limit",
