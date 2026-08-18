@@ -4,27 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-08-18
 
 ### Security
 
 - The compatibility SM4-CBC open path now runs exactly one SM2 signature verification on every envelope whose session key unwraps — whether or not PKCS#7 padding, the decoded-size bound, or authentication-input construction succeeded. Padding failure previously returned before that verification, and the verification (two EC scalar multiplications) dominates the function's cost, so a padding-invalid input returned measurably sooner: a network-observable Vaudenay padding oracle in the default CBC mode wherever the mandated authenticated-TLS transport was absent. On the decrypt-failure path the transcript is rebuilt from the raw ciphertext so the verification runs with the same shape, and success requires that padding, the length bound, transcript construction, and the verification all hold, so the fallback verification can never on its own accept an envelope — the bytes of a legitimately signed plaintext placed verbatim in `cipher` still reach the verification yet are rejected. This is request-level equalization of the dominant asymmetric operation, not a constant-time claim; the security model still mandates authenticated TLS. The engineering evidence map and the inbound-envelope section of the security model record the equalized path and its residuals.
-
-### Added
-
-- An `encoded_envelope` fuzz seed, `padding_fail_valid_signature`, driving the CBC decrypt-failure path where the raw-ciphertext fallback transcript carries a valid signature yet the envelope must still be rejected — the corpus mirror of the adversarial unit test.
-- A sentinel-redaction test that formats the crate `Error` type itself across five real failure paths (an unopenable envelope, a CRLF-injected header value, a case-insensitive header conflict, a rejected public key, and oversized plaintext) and asserts the planted caller-secret sentinel survives in neither `Display` nor `Debug`.
-
-### Changed
-
-- Every `encoded_envelope` and `aead_envelope` fuzz seed now declares an explicit open outcome and, for a rejection, a public error category (`InvalidEnvelope` or `MessageTooLarge`), asserted through one `assert_contract` helper. This replaces a blanket `is_err()` that let a seed pass for the wrong reason — a boundary probe rejected as malformed instead of over-limit, or `reserved_ccm_algorithm` rejected anywhere at all rather than at the frame's algorithm byte — subsumes the former encoded-boundary category test, and pins the mutation seeds that were never asserted rejected.
-- The weekly extended-fuzz cron derives a per-run libFuzzer seed (an explicit `FUZZ_SEED`, else the unique CI run id, else the date; echoed for replay and never zero) and raises its per-target budget to 300 seconds, so it no longer re-walks the one fixed path the per-PR smoke run uses. The smoke run keeps its fixed seed and run count so the per-PR gate stays deterministic.
-
-### Fixed
-
-- Corrected the CONTRIBUTING cargo-fuzz pin from 0.13.1 to 0.13.2 to match every executable source, and added a release-documents test that derives the pinned version from `.github/workflows/ci.yml` and requires CONTRIBUTING to quote it, so this prose-behind-the-pin drift class is caught structurally.
-
-## [0.2.0] - 2026-08-16
 
 ### Added
 
@@ -35,16 +19,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - 15 fuzz corpus seeds for the header-carried response-cipher parse branch (`CipherLocation::Header`). The Body-schema harness hardcodes `.response_cipher(CipherLocation::Body)`, so `parse_response`'s Header arm — match the cipher header, ignore the body, require a nonempty trimmed value — was dead to every fuzz target. A second schema/adapter and a separate 9-field generic frame keep the existing Body seeds byte-stable. Named seeds pin success (body ignored), missing, empty, and case-insensitive duplicate cipher headers; generic seeds pin the same `HeaderValue` boundaries as the Body corpora, but on the cipher-header slot, plus whitespace-only values that `trimmed_nonempty` rejects after `HeaderValue` accepts them. Measured with libFuzzer over the tracked corpus: `transport_parts` coverage 291 → 599 and features 366 → 745. Each seed declares its expected adapter outcome in `fuzz/tests/scenarios.rs`. Added without a new dependency.
 - `.gitattributes` marks `fuzz/corpus/**` as non-text. Git's end-of-line normalization had rewritten CRLF to LF while committing the two CRLF-injection seeds, which left them exercising a lone LF under a name that says otherwise and left their length prefixes describing one more byte than the value held. Nothing would have reported it: LF is rejected exactly like CRLF, so the seeds kept their declared outcomes. A contract test now asserts both seeds still carry a carriage return within the declared field length.
 - `ci/check-compatibility-gate.sh` executes the ecosystem charter's section 8 compatibility gate #1: it exports this crate and a candidate `gmcrypto-core` side by side, runs both charter phases in both feature configurations, and emits the evidence table the core release record requires. The `aead` configuration matters here — it compiles `gmcrypto-core/sm4-aead`, which pulls `gmcrypto-simd` (and, on x86_64 and aarch64, its target-gated `cpufeatures` detection dependency) into the graph, so a default-features-only gate cannot see that path. The candidate override is relative by construction, because an absolute path writes a developer home directory into the manifest and the boundary scanner rejects it. Driven by the manually triggered `compatibility-gate` workflow and covered by the `tests/compatibility_gate.sh` self-test. Validated end to end against a real `gmcrypto-core` checkout rather than only against the self-test's fake cargo: the run reproduces the hand-run PASS recorded for the 1.11.0 candidate on every pre-existing target, and extends it with the `aead` tier that hand run could not have covered.
+- An `encoded_envelope` fuzz seed, `padding_fail_valid_signature`, driving the CBC decrypt-failure path where the raw-ciphertext fallback transcript carries a valid signature yet the envelope must still be rejected — the corpus mirror of the adversarial unit test.
+- A sentinel-redaction test that formats the crate `Error` type itself across five real failure paths (an unopenable envelope, a CRLF-injected header value, a case-insensitive header conflict, a rejected public key, and oversized plaintext) and asserts the planted caller-secret sentinel survives in neither `Display` nor `Debug`.
 
 ### Fixed
 
 - Pre-release review fixes: the integration test for cross-mode envelope rejection now asserts the exact `Error::InvalidEnvelope` variant instead of any error, matching the claim its unit-level sibling already pins; the cryptographic dependency inventory's boundary prose now names the generic-scaffolding crates (`hybrid-array`, `typenum`, `num-traits`, `autocfg`) it excludes, which sat in the resolved backend graph without being either listed or excluded; and the README release-state sentence no longer describes the superseded 0.1.0 artifact set as the current `rc-built` record.
 - CI now format-checks the fuzz workspace. `cargo fmt --all -- --check` means every member of the *root* workspace, and `fuzz/` declares its own `[workspace]`, so nothing had ever checked it — two files had drifted unnoticed. Reintroducing that exact drift passes the root check and fails the new one.
 - Restored the release-document suite's CRLF-normalization regression test, dropped when the 0.1.0 release-candidate export was imported. The normalization itself survived the import, but nothing pinned it any more: with it removed, 12 of the 13 assertions still pass on macOS and Linux, so the loss would have surfaced only on Windows CI — and the 0.1.0 changelog already claims the behaviour as a fix. The read path is now a named `read_normalized`, exercised against a CRLF fixture and against a lone carriage return, which it must leave intact. Found by comparing the compatibility gate's per-target counts against the counts recorded for the hand-run 1.11.0 gate.
+- Corrected the CONTRIBUTING cargo-fuzz pin from 0.13.1 to 0.13.2 to match every executable source, and added a release-documents test that derives the pinned version from `.github/workflows/ci.yml` and requires CONTRIBUTING to quote it, so this prose-behind-the-pin drift class is caught structurally.
 
 ### Changed
 
 - Version identity moved to 0.2.0; the public API surface under default features is content-identical to the 0.1.0 snapshot. Security model, engineering evidence, API-stability policy, and cryptographic inventory documents advanced to version 2.
+- Every `encoded_envelope` and `aead_envelope` fuzz seed now declares an explicit open outcome and, for a rejection, a public error category (`InvalidEnvelope` or `MessageTooLarge`), asserted through one `assert_contract` helper. This replaces a blanket `is_err()` that let a seed pass for the wrong reason — a boundary probe rejected as malformed instead of over-limit, or `reserved_ccm_algorithm` rejected anywhere at all rather than at the frame's algorithm byte — subsumes the former encoded-boundary category test, and pins the mutation seeds that were never asserted rejected.
+- The weekly extended-fuzz cron derives a per-run libFuzzer seed (an explicit `FUZZ_SEED`, else the unique CI run id, else the date; echoed for replay and never zero) and raises its per-target budget to 300 seconds, so it no longer re-walks the one fixed path the per-PR smoke run uses. The smoke run keeps its fixed seed and run count so the per-PR gate stays deterministic.
 
 ## [0.1.0] - 2026-08-02
 
