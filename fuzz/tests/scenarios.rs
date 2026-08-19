@@ -26,15 +26,22 @@ enum Expect {
 enum Category {
     InvalidEnvelope,
     MessageTooLarge { limit: usize },
+    // A seed whose frame parse leaves a required header value empty never
+    // reaches crypto at all: the adapter refuses it first. Pinning that
+    // separately keeps "rejected before crypto" from passing as "rejected by
+    // crypto", which is the distinction the whole category column exists for.
+    ProtocolAdapter,
 }
 
 const OPENS: Expect = Expect::Opens;
 const BAD_ENVELOPE: Expect = Expect::Rejected(Category::InvalidEnvelope);
 const TOO_LARGE: Expect = Expect::Rejected(Category::MessageTooLarge { limit: 64 });
+const ADAPTER_REJECTED: Expect = Expect::Rejected(Category::ProtocolAdapter);
 
 const FULL_VALID_OPEN: &[u8] = include_bytes!("../corpus/encoded_envelope/full_valid_open");
 const AEAD_FULL_VALID: &[u8] = include_bytes!("../corpus/aead_envelope/full_valid_open");
 const RAW_MALFORMED: &[u8] = include_bytes!("../corpus/encoded_envelope/raw_malformed");
+const EMPTY_SEED: &[u8] = include_bytes!("../corpus/encoded_envelope/empty_seed");
 const TRANSPORT_SUCCESS: &[u8] = include_bytes!("../corpus/transport_parts/success");
 const TYPED_VALID: &[u8] = include_bytes!("../corpus/typed_headers/valid_request");
 const TRANSPORT_CRLF: &[u8] =
@@ -74,7 +81,65 @@ const ENCODED_CASES: &[(&str, &[u8], Expect)] = &[
         include_bytes!("../corpus/encoded_envelope/cryptographic_mutation_wrapped_key"),
         BAD_ENVELOPE,
     ),
+    // The three seeds below drive `support::fields`/`frame`, the seed-parsing
+    // layer every envelope seed passes through, off its happy path. No tracked
+    // seed had a malformed frame at all: `raw_malformed` supplies well-formed
+    // frames holding malformed *values*, which is a different decision.
+    //
+    // All three are `ProtocolAdapter`, not `InvalidEnvelope`: a failed frame
+    // parse yields empty fields, and with every field in raw mode that leaves a
+    // required response header empty, so the adapter refuses them before any
+    // crypto runs. That is the honest category, and pinning it is what stops
+    // "rejected before crypto" from reading as "rejected by crypto".
+    (
+        "frame_length_exceeds_body",
+        include_bytes!("../corpus/encoded_envelope/frame_length_exceeds_body"),
+        ADAPTER_REJECTED,
+    ),
+    (
+        "frame_without_colon",
+        include_bytes!("../corpus/encoded_envelope/frame_without_colon"),
+        ADAPTER_REJECTED,
+    ),
+    (
+        "malformed_frame_length",
+        include_bytes!("../corpus/encoded_envelope/malformed_frame_length"),
+        ADAPTER_REJECTED,
+    ),
     ("full_valid_open", FULL_VALID_OPEN, OPENS),
+    // Every other seed spells its field modes with the literal selector letters
+    // `v`/`r`/`b`/`m`, so `select_value`'s numeric fallback — the arm that maps
+    // any other byte through `% 4` — was unreachable from the tracked corpus,
+    // and it is the arm a mutating fuzzer actually lands on. `3` maps to the
+    // mutate arm for all three fields.
+    (
+        "selector_fallback_mutation",
+        include_bytes!("../corpus/encoded_envelope/selector_fallback_mutation"),
+        BAD_ENVELOPE,
+    ),
+    // A seed shorter than the six selector bytes leaves every mode unselected,
+    // which falls to the `None` arm and yields the valid value for all three
+    // fields. Both seeds therefore open, and they are the only coverage of the
+    // truncated-selector path that a mutator reaches by shrinking any input.
+    ("empty_seed", EMPTY_SEED, OPENS),
+    (
+        "truncated_selectors",
+        include_bytes!("../corpus/encoded_envelope/truncated_selectors"),
+        OPENS,
+    ),
+    // Isolated raw fields: `raw_malformed` puts all three in raw mode at once,
+    // so a single field's parse path was never exercised on its own against
+    // otherwise-valid neighbours.
+    (
+        "isolated_raw_signature",
+        include_bytes!("../corpus/encoded_envelope/isolated_raw_signature"),
+        BAD_ENVELOPE,
+    ),
+    (
+        "isolated_raw_wrapped",
+        include_bytes!("../corpus/encoded_envelope/isolated_raw_wrapped"),
+        BAD_ENVELOPE,
+    ),
     // F1 padding-oracle equalization: `cipher` carries the cleartext bytes of a
     // legitimately signed plaintext, so CBC decryption fails (block-misaligned)
     // yet the raw-ciphertext fallback transcript makes the SM2 verify return
@@ -1252,6 +1317,7 @@ fn assert_contract(name: &str, expect: Expect, result: gmcrypto_envelope_lite::R
         Err(Error::MessageTooLarge { limit }) => {
             Expect::Rejected(Category::MessageTooLarge { limit: *limit })
         }
+        Err(Error::ProtocolAdapter) => Expect::Rejected(Category::ProtocolAdapter),
         Err(other) => panic!("{name}: unexpected error category {other:?}"),
     };
     assert_eq!(actual, expect, "{name}");
