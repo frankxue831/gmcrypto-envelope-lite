@@ -30,6 +30,17 @@ path = "src/lib.rs"
 default = []
 aead = ["gmcrypto-core/sm4-aead"]
 
+# The examples demonstrate the configuration recommended for new
+# integrations, which requires the opt-in AEAD envelope mode; without the
+# feature they are skipped rather than silently teaching the legacy wire.
+[[example]]
+name = "build_request"
+required-features = ["aead"]
+
+[[example]]
+name = "open_response"
+required-features = ["aead"]
+
 [dependencies]
 base64 = "0.22.1"
 getrandom = { version = "0.4.0", features = ["sys_rng"] }

@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The examples and the README's primary client-construction walkthrough now demonstrate the configuration recommended for new integrations — the SM4-GCM envelope mode with `AuthenticationMode::ContextBound` and a caller-implemented `ProtocolAdapter` — instead of the fixed-IV CBC compatibility configuration, which previously occupied the primary position in both while the security model simultaneously described it as existing "only for legacy wire compatibility". The CBC + `LegacyPlaintext` + `HeaderProtocolAdapter` walkthrough remains, relabeled as the compatibility mode it is, and a new README section spells out the two migrations (CBC → AEAD, `LegacyPlaintext` → `ContextBound`), including that each is a coordinated both-ends wire change because modes are pinned with no negotiation or fallback. Both examples declare `required-features = ["aead"]`; the aead CI lanes compile them. No shipped crypto code changes; the owner ruled examples and doctests not crypto-relevant for the versioned-document ceremony (2026-08-19).
 - `ci/check-public-api.sh` derives the crate name and version from `Cargo.toml` instead of hardcoding the snapshot filenames and repeating the version in both drift messages, so a version bump no longer needs coupled edits in the checker and its contract test. The parser rejects a value containing a path separator, since the derived identity becomes a path component under `api/`.
 
 ## [0.2.0] - 2026-08-18

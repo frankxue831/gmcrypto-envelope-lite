@@ -3,8 +3,10 @@ use std::fs;
 use std::sync::Arc;
 
 use gmcrypto_envelope_lite::{
-    AuthenticationMode, CipherLocation, ClientConfig, HeaderProtocolAdapter, HeaderSchema,
-    KeyMaterial, PrivateKey, PublicKey, SecureClient,
+    AdapterError, AdapterErrorKind, AdapterResult, AeadAlgorithm, AuthenticationContext,
+    AuthenticationMode, ClientConfig, ClientIdentity, EnvelopeMode, KeyMaterial, ParsedResponse,
+    PrivateKey, ProtocolAdapter, ProtocolRequestContext, PublicKey, RequestParts, ResponseParts,
+    SecureClient, SecureEnvelope,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -49,6 +51,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// A new integration selects the SM4-GCM envelope mode and context-bound
+/// authentication. The fixed-IV SM4-CBC construction and `LegacyPlaintext`
+/// exist only for compatibility with already-deployed wires.
 fn example_client(keys: KeyMaterial) -> gmcrypto_envelope_lite::Result<SecureClient> {
     let config = ClientConfig::builder()
         .local_identity_id("demo-client")
@@ -58,38 +63,96 @@ fn example_client(keys: KeyMaterial) -> gmcrypto_envelope_lite::Result<SecureCli
         .remote_encryption_certificate_id("example-remote-encryption-certificate")
         .local_signer_id(b"demo-local-signer")
         .expected_remote_signer_id(b"demo-remote-signer")
-        .authentication_mode(AuthenticationMode::LegacyPlaintext)
-        .iv(*b"example-iv-00001")
+        .authentication_mode(AuthenticationMode::context_bound(
+            b"example-app/envelope/v1",
+        )?)
+        .envelope_mode(EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm))
         .build()?;
     Ok(SecureClient::new(
         config,
         keys,
-        Arc::new(HeaderProtocolAdapter::new(
-            example_schema().map_err(|_| gmcrypto_envelope_lite::Error::ProtocolAdapter)?,
-        )),
+        Arc::new(ExampleContextAdapter),
     ))
 }
 
-fn example_schema() -> Result<HeaderSchema, gmcrypto_envelope_lite::AdapterError> {
-    HeaderSchema::builder()
-        .static_request_header("Content-Type", "application/example-envelope")
-        .local_identity_header("X-Envelope-Local-Identity")
-        .operation_header("X-Envelope-Operation")
-        .request_id_header("X-Envelope-Request-Id")
-        .request_time_header("X-Envelope-Request-Time")
-        .api_version_header("X-Envelope-Api-Version")
-        .local_certificate_header("X-Envelope-Local-Certificate")
-        .remote_signing_certificate_header("X-Envelope-Remote-Signing-Certificate")
-        .remote_encryption_certificate_header("X-Envelope-Remote-Encryption-Certificate")
-        .request_signature_header("X-Envelope-Request-Signature")
-        .request_wrapped_key_header("X-Envelope-Request-Wrapped-Key")
-        .request_cipher(CipherLocation::Body)
-        .response_signature_header("X-Envelope-Response-Signature")
-        .response_wrapped_key_header("X-Envelope-Response-Wrapped-Key")
-        .response_remote_signing_certificate_header(
-            "X-Envelope-Response-Remote-Signing-Certificate",
+/// Wire mapping for the example's context-bound protocol.
+///
+/// `HeaderProtocolAdapter` deliberately supports only legacy plaintext
+/// authentication, so a context-bound wire implements [`ProtocolAdapter`]
+/// directly. The adapter selects what each signature covers and how envelope
+/// fields travel; it never sees plaintext or key material.
+struct ExampleContextAdapter;
+
+impl ProtocolAdapter for ExampleContextAdapter {
+    fn request_authentication_context(
+        &self,
+        _identity: &ClientIdentity,
+        context: &ProtocolRequestContext,
+    ) -> AdapterResult<AuthenticationContext> {
+        // Bind the semantic request data the remote re-derives from the wire:
+        // a verifying peer commits to the operation and request id, not just
+        // the plaintext bytes.
+        AuthenticationContext::context_bound(
+            format!(
+                "operation={}&request-id={}",
+                context.operation(),
+                context.metadata().request_id()
+            )
+            .into_bytes(),
         )
-        .response_cipher(CipherLocation::Body)
-        .legacy_authentication()
-        .build()
+        .map_err(|_| AdapterError::new(AdapterErrorKind::InvalidField))
+    }
+
+    fn build_request(
+        &self,
+        identity: &ClientIdentity,
+        context: &ProtocolRequestContext,
+        envelope: &SecureEnvelope,
+    ) -> AdapterResult<RequestParts> {
+        RequestParts::new(
+            [
+                ("Content-Type", "application/example-envelope"),
+                ("X-Envelope-Local-Identity", identity.local_identity_id()),
+                ("X-Envelope-Api-Version", identity.api_version()),
+                (
+                    "X-Envelope-Local-Certificate",
+                    identity.local_certificate_id(),
+                ),
+                ("X-Envelope-Operation", context.operation()),
+                ("X-Envelope-Request-Id", context.metadata().request_id()),
+                ("X-Envelope-Request-Time", context.metadata().request_time()),
+                ("X-Envelope-Request-Signature", envelope.signature.as_str()),
+                (
+                    "X-Envelope-Request-Wrapped-Key",
+                    envelope.wrapped_session_key.as_str(),
+                ),
+            ],
+            envelope.cipher.as_str(),
+        )
+        .map_err(|_| AdapterError::new(AdapterErrorKind::InvalidField))
+    }
+
+    fn parse_response(&self, response: ResponseParts) -> AdapterResult<ParsedResponse> {
+        let header = |name: &str| {
+            response
+                .headers()
+                .find(|(candidate, _)| candidate.eq_ignore_ascii_case(name))
+                .map(|(_, value)| value.to_owned())
+                .ok_or_else(|| AdapterError::new(AdapterErrorKind::MissingField))
+        };
+        let envelope = SecureEnvelope {
+            cipher: response.body().to_owned(),
+            wrapped_session_key: header("X-Envelope-Response-Wrapped-Key")?,
+            signature: header("X-Envelope-Response-Signature")?,
+        };
+        let certificate = header("X-Envelope-Response-Remote-Signing-Certificate")?;
+        // The remote binds the request id it is answering into its signed
+        // transcript. A verified open therefore authenticates that claim; the
+        // application still correlates it with the originating request itself.
+        let request_id = header("X-Envelope-Request-Id")?;
+        let context =
+            AuthenticationContext::context_bound(format!("request-id={request_id}").into_bytes())
+                .map_err(|_| AdapterError::new(AdapterErrorKind::InvalidField))?;
+        ParsedResponse::new(envelope, certificate, context)
+    }
 }
