@@ -397,6 +397,10 @@ check_contract() (
         'sh tests/public_api.sh' "$check_tmp/ci-quality-public-api-test"
     require_named_run "$check_tmp/ci-quality" 'Verify public API snapshot' \
         './ci/check-public-api.sh' "$check_tmp/ci-quality-public-api"
+    require_named_run "$check_tmp/ci-quality" 'Exercise public fixture checker' \
+        'sh tests/public_fixtures.sh' "$check_tmp/ci-quality-public-fixtures-test"
+    require_named_run "$check_tmp/ci-quality" 'Verify public test fixtures' \
+        './ci/check-public-fixtures.sh' "$check_tmp/ci-quality-public-fixtures"
     require_named_run "$check_tmp/ci-quality" 'Exercise cryptographic inventory checker' \
         'sh tests/crypto_inventory.sh' "$check_tmp/ci-quality-inventory-test"
     require_named_run "$check_tmp/ci-quality" 'Exercise compatibility gate' \
