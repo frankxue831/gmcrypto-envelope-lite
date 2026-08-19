@@ -93,6 +93,10 @@ jobs:
         run: sh tests/public_api.sh
       - name: Verify public API snapshot
         run: ./ci/check-public-api.sh
+      - name: Exercise public fixture checker
+        run: sh tests/public_fixtures.sh
+      - name: Verify public test fixtures
+        run: ./ci/check-public-fixtures.sh
       - name: Exercise cryptographic inventory checker
         run: sh tests/crypto_inventory.sh
       - name: Exercise compatibility gate
