@@ -6,6 +6,10 @@ script="$repo_root/ci/check-release-candidate.sh"
 package_script="$repo_root/ci/check-cargo-package.sh"
 contributing="$repo_root/CONTRIBUTING.md"
 
+# The fixture documents must carry the versions the release command pins, so
+# they are derived from the same file rather than hardcoded a second time.
+. "$repo_root/ci/tool-versions.sh"
+
 fail() {
     echo "error: $*" >&2
     exit 1
@@ -414,12 +418,15 @@ printf '%s\n' license >"$rc_repo/LICENSE-APACHE"
 printf '%s\n' license >"$rc_repo/LICENSE-MIT"
 printf '%s\n' readme >"$rc_repo/README.md"
 printf '%s\n' security >"$rc_repo/SECURITY.md"
-printf '%s\n' '# Security Model' '**Model version:** 2' >"$rc_repo/SECURITY_MODEL.md"
-printf '%s\n' '# Release Checklist' '**Template version:** 1' >"$rc_repo/RELEASE_CHECKLIST.md"
-printf '%s\n' '# API Stability' '**Policy version:** 2' >"$rc_repo/docs/api-stability.md"
-printf '%s\n' '# Engineering Evidence' '**Evidence version:** 2' \
+printf '%s\n' '# Security Model' "**Model version:** $SECURITY_MODEL_VERSION" \
+    >"$rc_repo/SECURITY_MODEL.md"
+printf '%s\n' '# Release Checklist' "**Template version:** $RELEASE_CHECKLIST_VERSION" \
+    >"$rc_repo/RELEASE_CHECKLIST.md"
+printf '%s\n' '# API Stability' "**Policy version:** $API_SNAPSHOT_VERSION" \
+    >"$rc_repo/docs/api-stability.md"
+printf '%s\n' '# Engineering Evidence' "**Evidence version:** $ENGINEERING_EVIDENCE_VERSION" \
     >"$rc_repo/docs/security/engineering-evidence.md"
-printf '%s\n' '# Cryptographic Dependencies' '**Inventory version:** 2' \
+printf '%s\n' '# Cryptographic Dependencies' "**Inventory version:** $CRYPTO_INVENTORY_VERSION" \
     >"$rc_repo/docs/security/cryptographic-dependencies.md"
 printf '%s\n' 'pub fn fixture() {}' >"$rc_repo/src/lib.rs"
 printf '%s\n' 'fn main() {}' >"$rc_repo/examples/build_request.rs"
