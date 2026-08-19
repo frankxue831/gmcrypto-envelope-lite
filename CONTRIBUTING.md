@@ -54,7 +54,7 @@ git status --short
 ./ci/check-release-candidate.sh HEAD /absolute/path/outside-this-repository/gmcrypto-envelope-lite-rc
 ```
 
-A successful repository construction reaches only `rc-built`. Private exact-wire compatibility, organization policy acceptance, independent security review, legal approval, and release authorization remain external gates recorded in the blank [release checklist](RELEASE_CHECKLIST.md). No command in this repository publishes a crate, creates or pushes a tag, or grants publication approval.
+A successful repository construction reaches only `rc-built`. Security review, license and dependency hygiene, the publication decision, and release authorization remain external gates recorded in the blank [release checklist](RELEASE_CHECKLIST.md). No command in this repository publishes a crate, creates or pushes a tag, or grants publication approval.
 
 ## Release-boundary rules
 

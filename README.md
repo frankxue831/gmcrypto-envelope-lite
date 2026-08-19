@@ -321,13 +321,13 @@ The crate zeroizes SDK-owned session-key buffers, unverified plaintext buffers, 
 
 Real remote mappings, identifiers, fixtures, and the exact-wire compatibility suite must live outside the public checkout, such as in a separately access-controlled repository, configuration system, or adapter crate. Untracked files inside a public checkout are not a secrecy boundary. Before an internal deployment, the private compatibility suite must prove exact compatibility with the existing remote wire.
 
-Removing sensitive material from the current tree does not remove it from Git history. Publication must use a fresh, reviewed export or repository, unless a separately approved history rewrite is performed. Before publication, scan the complete export and package contents, then obtain security and legal approval.
+Removing sensitive material from the current tree does not remove it from Git history. Publication uses either this repository made public after a recorded history scan and an explicit owner decision, or a fresh, reviewed export. Before publication, scan the complete export and package contents and record the review disposition.
 
 ## Release status
 
 Version 0.2.0 is unreleased; its release-candidate artifact set is recorded at promotion state rc-built pending the external gates. Publishing is enabled in the manifest, and publication happens only after the external gates in the release checklist pass. Repository checks can produce an immutable `rc-built` artifact set containing the source export, Cargo package, manifest, and checksums for one exact commit.
 
-`rc-built` is evidence of repository gate completion, not approval for private exact-wire compatibility, independent security review, legal approval, production deployment, or publication. The blank [release checklist](RELEASE_CHECKLIST.md) defines those external states and is deliberately excluded from the Cargo package.
+`rc-built` is evidence of repository gate completion, not approval for security review, license and dependency hygiene, the publication decision, or publication itself. The blank [release checklist](RELEASE_CHECKLIST.md) defines those external states and is deliberately excluded from the Cargo package.
 
 ## Examples
 

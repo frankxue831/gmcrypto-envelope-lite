@@ -1,15 +1,17 @@
 # 0.2.0 Release Candidate External Gate Checklist
 
-**Template version:** 1
+**Template version:** 2
 
-Only this blank template is committed. A completed copy remains in the authorized external approval system unless a separate disclosure review approves a fully sanitized public record.
+Only this blank template is committed. A completed copy lives in the release owner's records outside the repository, and is not committed unless a separate disclosure review approves a sanitized public record.
+
+This template records the solo-owner release process this project actually runs. The repository's in-tree gates are unchanged; the gates below are the external layer.
 
 ## Promotion states
 
 - `candidate-source`: a named commit selected for repository checks.
 - `rc-built`: repository-owned gates passed for the exact candidate commit, and the complete immutable artifact set was produced and checksummed. External recording is not a prerequisite for this local state; external gates are **not evaluated in-tree**.
-- `rc-approved`: the unchanged complete `rc-built` artifact set passed every required private and human gate in authorized external systems.
-- `release-authorized`: an authorized release owner approved a separately requested publication action for the unchanged complete `rc-approved` artifact set.
+- `rc-approved`: the unchanged complete `rc-built` artifact set passed every required external gate below, recorded by the release owner.
+- `release-authorized`: the release owner approved a separately considered publication action for the unchanged complete `rc-approved` artifact set.
 
 The repository command can produce only `rc-built`. It cannot infer or record either later state.
 
@@ -30,7 +32,7 @@ Every later approval must identify the unchanged complete artifact set above.
 
 ## Required fields for every external gate evidence record
 
-The authorized external approval system records the actual values for every gate. The committed template remains blank and contains no completed evidence record.
+The release owner's record keeps the actual values for every gate. The committed template remains blank and contains no completed evidence record.
 
 - Gate ID.
 - Exact candidate commit.
@@ -52,12 +54,9 @@ Each following gate must identify the unchanged complete artifact set and includ
 - [ ] macOS CI passed for the exact candidate commit; record the run ID and actual `rustc --version`.
 - [ ] Windows CI passed for the exact candidate commit; record the run ID and actual `rustc --version`.
 - [ ] Rust 1.85 MSRV CI passed for the exact candidate commit; record the run ID and actual `rustc --version`.
-- [ ] Private policy scan passed against the identified source export and unpacked package.
-- [ ] Exact-wire compatibility passed for outbound names, values, casing, body placement, and signatures.
-- [ ] Exact-wire compatibility passed for approved inbound responses and failure behavior.
-- [ ] Replacement-client rotation preserved the deployed wire contract.
-- [ ] Independent security review completed with disposition recorded externally.
-- [ ] Legal and open-source approval completed.
+- [ ] Self security review completed against the prepared review packet, with residual rulings and a signed disposition recorded.
+- [ ] License and dependency hygiene: the committed license files match the manifest license expression, and a fresh `cargo deny check` ran green at the candidate commit on the review date.
+- [ ] Repository history scanned for secrets, and the publication method — public history or fresh reviewed export — decided and recorded before the repository becomes public.
 - [ ] Hosted GitHub repository is named `gmcrypto-envelope-lite`; record the final repository URL.
 - [ ] Cargo `repository` metadata resolves to the authorized hosted repository before publication.
 - [ ] Authorized release owner confirmed that the reviewed commit and checksums are unchanged.
