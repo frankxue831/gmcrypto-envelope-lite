@@ -39,13 +39,39 @@ assert_ambient_cargo_unused() {
 mkdir -p "$fixture/ci" "$fixture/api" "$fixture/rustup-bin" \
     "$fixture/pinned-bin" "$fixture/other-pinned-bin" "$fixture/tmp" \
     "$fixture/ambient-stable-bin" "$fixture/ambient-nightly-bin"
+
+# The checker derives the snapshot filenames from the crate identity in
+# Cargo.toml, so derive the same identity here rather than restating it: a
+# version bump must not require a coupled edit in this test either.
+crate_name=gmcrypto-envelope-lite
+crate_version=$(awk '
+    /^\[package\][[:space:]]*$/ { in_package = 1; next }
+    /^\[/ { in_package = 0 }
+    in_package && /^[[:space:]]*version[[:space:]]*=/ {
+        line = $0
+        sub("^[[:space:]]*version[[:space:]]*=[[:space:]]*\"", "", line)
+        sub("\"[[:space:]]*$", "", line)
+        print line
+        exit
+    }
+' "$repo_root/Cargo.toml")
+test -n "$crate_version" || fail "could not read the crate version for the fixture"
+snapshot_basename="$crate_name-$crate_version"
+
+cat >"$fixture/Cargo.toml" <<EOF
+[package]
+name = "$crate_name"
+version = "$crate_version"
+edition = "2021"
+EOF
+
 cp "$repo_root/ci/check-public-api.sh" "$repo_root/ci/tool-versions.sh" "$fixture/ci/"
-cp "$repo_root/api/gmcrypto-envelope-lite-0.2.0.txt" \
-    "$fixture/api/gmcrypto-envelope-lite-0.2.0.txt"
-cp "$repo_root/api/gmcrypto-envelope-lite-0.2.0.txt" "$fixture/generated.txt"
-cp "$repo_root/api/gmcrypto-envelope-lite-0.2.0-aead.txt" \
-    "$fixture/api/gmcrypto-envelope-lite-0.2.0-aead.txt"
-cp "$repo_root/api/gmcrypto-envelope-lite-0.2.0-aead.txt" "$fixture/generated-aead.txt"
+cp "$repo_root/api/$snapshot_basename.txt" \
+    "$fixture/api/$snapshot_basename.txt"
+cp "$repo_root/api/$snapshot_basename.txt" "$fixture/generated.txt"
+cp "$repo_root/api/$snapshot_basename-aead.txt" \
+    "$fixture/api/$snapshot_basename-aead.txt"
+cp "$repo_root/api/$snapshot_basename-aead.txt" "$fixture/generated-aead.txt"
 
 for ambient_dir in "$fixture/ambient-stable-bin" "$fixture/ambient-nightly-bin"; do
     cat >"$ambient_dir/cargo" <<'EOF'
@@ -238,35 +264,74 @@ fi
 assert_contains "$fixture/version.err" "error: cargo-public-api version mismatch: expected cargo-public-api 0.52.0, found cargo-public-api 9.9.9"
 assert_ambient_cargo_unused
 
-rm "$fixture/api/gmcrypto-envelope-lite-0.2.0.txt"
+rm "$fixture/api/$snapshot_basename.txt"
 if run_checker missing "$fixture/ambient-stable-bin"; then
     fail "missing snapshot unexpectedly succeeded"
 fi
 assert_contains "$fixture/missing.err" "error: public API snapshot is missing"
-cp "$fixture/generated.txt" "$fixture/api/gmcrypto-envelope-lite-0.2.0.txt"
+cp "$fixture/generated.txt" "$fixture/api/$snapshot_basename.txt"
 
-printf 'intentional snapshot drift\n' >"$fixture/api/gmcrypto-envelope-lite-0.2.0.txt"
+printf 'intentional snapshot drift\n' >"$fixture/api/$snapshot_basename.txt"
 if run_checker drift "$fixture/ambient-stable-bin"; then
     fail "snapshot drift unexpectedly succeeded"
 fi
-assert_contains "$fixture/drift.err" "error: public API differs from the 0.2.0 snapshot"
+assert_contains "$fixture/drift.err" "error: public API differs from the $crate_version snapshot"
 assert_contains "$fixture/drift.out" "-intentional snapshot drift"
-cp "$fixture/generated.txt" "$fixture/api/gmcrypto-envelope-lite-0.2.0.txt"
+cp "$fixture/generated.txt" "$fixture/api/$snapshot_basename.txt"
 
-rm "$fixture/api/gmcrypto-envelope-lite-0.2.0-aead.txt"
+rm "$fixture/api/$snapshot_basename-aead.txt"
 if run_checker missing-aead "$fixture/ambient-stable-bin"; then
     fail "missing AEAD snapshot unexpectedly succeeded"
 fi
 assert_contains "$fixture/missing-aead.err" "error: AEAD public API snapshot is missing"
-cp "$fixture/generated-aead.txt" "$fixture/api/gmcrypto-envelope-lite-0.2.0-aead.txt"
+cp "$fixture/generated-aead.txt" "$fixture/api/$snapshot_basename-aead.txt"
 
-printf 'intentional aead snapshot drift\n' >"$fixture/api/gmcrypto-envelope-lite-0.2.0-aead.txt"
+printf 'intentional aead snapshot drift\n' >"$fixture/api/$snapshot_basename-aead.txt"
 if run_checker drift-aead "$fixture/ambient-stable-bin"; then
     fail "AEAD snapshot drift unexpectedly succeeded"
 fi
-assert_contains "$fixture/drift-aead.err" "error: AEAD public API differs from the 0.2.0 snapshot"
+assert_contains "$fixture/drift-aead.err" "error: AEAD public API differs from the $crate_version snapshot"
 assert_contains "$fixture/drift-aead.out" "-intentional aead snapshot drift"
-cp "$fixture/generated-aead.txt" "$fixture/api/gmcrypto-envelope-lite-0.2.0-aead.txt"
+cp "$fixture/generated-aead.txt" "$fixture/api/$snapshot_basename-aead.txt"
+
+mv "$fixture/Cargo.toml" "$fixture/manifest.bak"
+if run_checker no-manifest "$fixture/ambient-stable-bin"; then
+    fail "missing package manifest unexpectedly succeeded"
+fi
+assert_contains "$fixture/no-manifest.err" "error: package manifest is missing"
+mv "$fixture/manifest.bak" "$fixture/Cargo.toml"
+
+# Without a [package] version the snapshot identity is underivable; the checker
+# must refuse rather than compare against a truncated path.
+cat >"$fixture/Cargo.toml" <<EOF
+[package]
+name = "$crate_name"
+edition = "2021"
+EOF
+if run_checker no-version "$fixture/ambient-stable-bin"; then
+    fail "manifest without a version unexpectedly succeeded"
+fi
+assert_contains "$fixture/no-version.err" "error: could not read package version"
+
+# The derived identity becomes a path component, so a value carrying a
+# separator must be refused rather than resolving outside api/.
+cat >"$fixture/Cargo.toml" <<EOF
+[package]
+name = "$crate_name"
+version = "../../../etc/passwd"
+edition = "2021"
+EOF
+if run_checker traversing-version "$fixture/ambient-stable-bin"; then
+    fail "manifest with a path-separating version unexpectedly succeeded"
+fi
+assert_contains "$fixture/traversing-version.err" "error: could not read package version"
+
+cat >"$fixture/Cargo.toml" <<EOF
+[package]
+name = "$crate_name"
+version = "$crate_version"
+edition = "2021"
+EOF
 
 if run_checker generator "$fixture/ambient-stable-bin" FAKE_GENERATOR_FAILURE=1; then
     fail "generator failure unexpectedly succeeded"
