@@ -14,9 +14,9 @@ You should receive an acknowledgement within 7 days. Please allow a reasonable e
 
 | Version | Supported |
 | ------- | --------- |
-| 0.2.x (unreleased) | Yes — latest commit on `main` only |
+| 0.2.x | Yes |
 
-Until a stable release exists, fixes land on `main` and are not backported.
+Fixes land on `main` and ship in the next 0.2.x release. There is no 0.1.x support line.
 
 ## Scope notes
 

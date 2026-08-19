@@ -441,7 +441,7 @@ fn security_model_is_versioned_and_states_claims_and_non_claims() {
         &policy,
         &[
             "## Supported versions",
-            "| 0.2.x (unreleased) | Yes — latest commit on `main` only |",
+            "| 0.2.x | Yes |",
         ],
     );
 }
