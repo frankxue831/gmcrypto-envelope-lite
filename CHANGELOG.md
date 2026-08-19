@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- A `context_envelope` fuzz target covering `AuthenticationMode::ContextBound` — the mode the README recommends — in both directions. The `encoded_envelope` and `aead_envelope` targets both pin `LegacyPlaintext`, so the context-bound transcript builder saw no fuzz input at all, and no target exercised the seal direction with fuzzer-controlled input: seal ran only to mint one fixed valid envelope. The new target drives fuzzer-controlled protocol context and plaintext through seal and open together, and asserts that a round trip returns exactly the sealed bytes rather than merely opening, since the transcript is length-prefixed and a framing bug would surface as a successful open of the wrong plaintext. Six curated seeds each declare both the scenario their selector byte chooses and the outcome they must reach, alongside a sweep asserting that an envelope sealed under one protocol context never opens under another across context shapes a single seed cannot reach. The `LegacyMarker` scenario also gives the CBC authentication-input failure path its first fuzz coverage.
+
+### Changed
+
+- `ci/check-public-api.sh` derives the crate name and version from `Cargo.toml` instead of hardcoding the snapshot filenames and repeating the version in both drift messages, so a version bump no longer needs coupled edits in the checker and its contract test. The parser rejects a value containing a path separator, since the derived identity becomes a path component under `api/`.
+
 ## [0.2.0] - 2026-08-18
 
 ### Security

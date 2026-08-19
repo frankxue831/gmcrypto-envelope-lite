@@ -545,8 +545,103 @@ const TYPED_GENERIC_CASES: &[(&str, &[u8], support::ScenarioOutcome)] = &[
     ),
 ];
 
+// The context-bound target is the only fuzz coverage of the preferred
+// authentication mode and of the seal direction, so each seed pins the scenario
+// its selector byte chooses as well as the outcome it must reach. Without the
+// scenario column a seed whose first byte drifted would fall through to
+// `Generic`, which carries no contract, and keep passing while testing nothing.
+const CONTEXT_CASES: &[(
+    &str,
+    &[u8],
+    support::ContextScenario,
+    support::ScenarioOutcome,
+)] = &[
+    (
+        "round_trip",
+        include_bytes!("../corpus/context_envelope/round_trip"),
+        support::ContextScenario::RoundTrip,
+        support::ScenarioOutcome::Accepted,
+    ),
+    (
+        "empty_plaintext_minimal_context",
+        include_bytes!("../corpus/context_envelope/empty_plaintext_minimal_context"),
+        support::ContextScenario::RoundTrip,
+        support::ScenarioOutcome::Accepted,
+    ),
+    (
+        "mismatched_context",
+        include_bytes!("../corpus/context_envelope/mismatched_context"),
+        support::ContextScenario::MismatchedContext,
+        support::ScenarioOutcome::Rejected,
+    ),
+    (
+        "legacy_marker",
+        include_bytes!("../corpus/context_envelope/legacy_marker"),
+        support::ContextScenario::LegacyMarker,
+        support::ScenarioOutcome::Rejected,
+    ),
+    (
+        "oversize_plaintext",
+        include_bytes!("../corpus/context_envelope/oversize_plaintext"),
+        support::ContextScenario::OversizePlaintext,
+        support::ScenarioOutcome::Rejected,
+    ),
+    (
+        "generic_round_trip",
+        include_bytes!("../corpus/context_envelope/generic_round_trip"),
+        support::ContextScenario::Generic,
+        support::ScenarioOutcome::Accepted,
+    ),
+];
+
+#[test]
+fn curated_context_seeds_reach_named_scenarios_and_outcomes() {
+    for (name, seed, scenario, expected) in CONTEXT_CASES {
+        assert_eq!(support::context_scenario(seed), *scenario, "{name}");
+        assert_eq!(support::context_outcome(seed), *expected, "{name}");
+    }
+}
+
+#[test]
+fn a_differing_protocol_context_never_opens_a_context_bound_envelope() {
+    // The security property the context-bound mode exists for: the protocol
+    // context is inside the signed transcript, so an envelope sealed under one
+    // context must not open under another. `mismatched_context` covers this for
+    // one curated seed; this sweeps it across context shapes that a single seed
+    // would not reach, including the length-prefix boundaries.
+    for context in [
+        &b"a"[..],
+        &b"operation=transfer"[..],
+        &b"operation=transfer\0"[..],
+        &[0xff; 64][..],
+        &[b'z'; 255][..],
+    ] {
+        let mut seed = b"M.....".to_vec();
+        seed.extend_from_slice(b"|13:context sweep|");
+        seed.extend_from_slice(format!("{}:", context.len()).as_bytes());
+        seed.extend_from_slice(context);
+        seed.extend_from_slice(b"|0:");
+        assert_eq!(
+            support::context_scenario(&seed),
+            support::ContextScenario::MismatchedContext,
+            "context length {}",
+            context.len()
+        );
+        assert_eq!(
+            support::context_outcome(&seed),
+            support::ScenarioOutcome::Rejected,
+            "a context-bound envelope opened under a differing context (length {})",
+            context.len()
+        );
+    }
+}
+
 #[test]
 fn every_tracked_seed_has_a_contract_case() {
+    assert_corpus_names(
+        "context_envelope",
+        CONTEXT_CASES.iter().map(|(name, ..)| *name),
+    );
     assert_corpus_names("aead_envelope", AEAD_CASES.iter().map(|(name, ..)| *name));
     assert_corpus_names(
         "encoded_envelope",

@@ -124,7 +124,7 @@ case "$mode" in
         ;;
 esac
 
-for target in transport_parts encoded_envelope typed_headers aead_envelope
+for target in transport_parts encoded_envelope typed_headers aead_envelope context_envelope
 do
     output_corpus="$run_root/$target-output"
     input_corpus="$run_root/$target-input"
