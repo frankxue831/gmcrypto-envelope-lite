@@ -63,6 +63,8 @@ The SM2 signature remains mandatory under AEAD: the session key is encrypted to 
 # #[cfg(feature = "aead")] {
 use gmcrypto_envelope_lite::{AeadAlgorithm, AuthenticationMode, ClientConfig, EnvelopeMode};
 
+let mode = AuthenticationMode::context_bound(b"example-app/envelope/v1")
+    .expect("nonempty domain separator");
 let config = ClientConfig::builder()
     .local_identity_id("demo-client")
     .api_version("example-v1")
@@ -71,7 +73,7 @@ let config = ClientConfig::builder()
     .remote_encryption_certificate_id("example-remote-encryption-certificate")
     .local_signer_id(b"demo-local-signer")
     .expected_remote_signer_id(b"demo-remote-signer")
-    .authentication_mode(AuthenticationMode::LegacyPlaintext)
+    .authentication_mode(mode)
     .envelope_mode(EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm))
     .build();
 assert!(config.is_ok());
@@ -80,7 +82,124 @@ assert!(config.is_ok());
 
 ## Constructing a client
 
-All protocol mappings are explicit; there are no built-in remote wire names.
+All protocol mappings are explicit; there are no built-in remote wire names. A new integration enables the `aead` feature and pairs the SM4-GCM envelope mode with context-bound authentication. Its `ProtocolAdapter` defines the wire: which authentication context each signature covers, and how envelope fields travel. The adapter never sees plaintext or key material.
+
+```no_run
+# #[cfg(feature = "aead")] {
+use std::sync::Arc;
+
+use gmcrypto_envelope_lite::{
+    AdapterError, AdapterErrorKind, AdapterResult, AeadAlgorithm, AuthenticationContext,
+    AuthenticationMode, ClientConfig, ClientIdentity, EnvelopeMode, KeyMaterial, ParsedResponse,
+    PrivateKey, ProtocolAdapter, ProtocolRequestContext, PublicKey, RequestParts, ResponseParts,
+    SecureClient, SecureEnvelope,
+};
+
+struct ExampleContextAdapter;
+
+impl ProtocolAdapter for ExampleContextAdapter {
+    fn request_authentication_context(
+        &self,
+        _identity: &ClientIdentity,
+        context: &ProtocolRequestContext,
+    ) -> AdapterResult<AuthenticationContext> {
+        // Bind semantic request data the verifying peer re-derives from the
+        // received wire fields.
+        AuthenticationContext::context_bound(
+            format!(
+                "operation={}&request-id={}",
+                context.operation(),
+                context.metadata().request_id()
+            )
+            .into_bytes(),
+        )
+        .map_err(|_| AdapterError::new(AdapterErrorKind::InvalidField))
+    }
+
+    fn build_request(
+        &self,
+        identity: &ClientIdentity,
+        context: &ProtocolRequestContext,
+        envelope: &SecureEnvelope,
+    ) -> AdapterResult<RequestParts> {
+        RequestParts::new(
+            [
+                ("X-Envelope-Local-Identity", identity.local_identity_id()),
+                ("X-Envelope-Operation", context.operation()),
+                ("X-Envelope-Request-Id", context.metadata().request_id()),
+                ("X-Envelope-Request-Signature", envelope.signature.as_str()),
+                (
+                    "X-Envelope-Request-Wrapped-Key",
+                    envelope.wrapped_session_key.as_str(),
+                ),
+            ],
+            envelope.cipher.as_str(),
+        )
+        .map_err(|_| AdapterError::new(AdapterErrorKind::InvalidField))
+    }
+
+    fn parse_response(&self, response: ResponseParts) -> AdapterResult<ParsedResponse> {
+        let header = |name: &str| {
+            response
+                .headers()
+                .find(|(candidate, _)| candidate.eq_ignore_ascii_case(name))
+                .map(|(_, value)| value.to_owned())
+                .ok_or_else(|| AdapterError::new(AdapterErrorKind::MissingField))
+        };
+        let envelope = SecureEnvelope {
+            cipher: response.body().to_owned(),
+            wrapped_session_key: header("X-Envelope-Response-Wrapped-Key")?,
+            signature: header("X-Envelope-Response-Signature")?,
+        };
+        let certificate = header("X-Envelope-Response-Remote-Signing-Certificate")?;
+        // The remote binds the request id it answers into its signed
+        // transcript; the application still correlates the verified response
+        // with its originating request.
+        let request_id = header("X-Envelope-Request-Id")?;
+        let context = AuthenticationContext::context_bound(
+            format!("request-id={request_id}").into_bytes(),
+        )
+        .map_err(|_| AdapterError::new(AdapterErrorKind::InvalidField))?;
+        ParsedResponse::new(envelope, certificate, context)
+    }
+}
+
+fn client(key_password: &[u8]) -> Result<SecureClient, Box<dyn std::error::Error>> {
+    let keys = KeyMaterial::new(
+        PrivateKey::from_encrypted_file("example-local-signing.pem", key_password)?,
+        PrivateKey::from_encrypted_file("example-local-decryption.pem", key_password)?,
+        PublicKey::from_file("example-remote-verification.pem")?,
+        PublicKey::from_file("example-remote-encryption.pem")?,
+    );
+    let config = ClientConfig::builder()
+        .local_identity_id("demo-client")
+        .api_version("example-v1")
+        .local_certificate_id("example-local-signing-certificate")
+        .expected_remote_signing_certificate_id("example-remote-signing-certificate")
+        .remote_encryption_certificate_id("example-remote-encryption-certificate")
+        .local_signer_id(b"demo-local-signer")
+        .expected_remote_signer_id(b"demo-remote-signer")
+        .authentication_mode(AuthenticationMode::context_bound(
+            b"example-app/envelope/v1",
+        )?)
+        .envelope_mode(EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm))
+        .build()?;
+    Ok(SecureClient::new(
+        config,
+        keys,
+        Arc::new(ExampleContextAdapter),
+    ))
+}
+# let key_password = std::env::var("SECURE_ENVELOPE_KEY_PASSWORD").expect("example password");
+# let _client = client(key_password.as_bytes()).expect("example client");
+# }
+```
+
+The domain separator is fixed in configuration and versioned like a wire format; the per-request context is derived from semantic request data that the verifying peer can re-derive. `examples/build_request.rs` and `examples/open_response.rs` are complete runnable versions of this integration.
+
+### Compatibility mode: an existing CBC wire
+
+An already-deployed fixed-IV CBC wire remains supported indefinitely; configure it explicitly as the compatibility mode it is. `HeaderProtocolAdapter` is the legacy-compatibility convenience for header-mapped wires, and its schema requires the explicit `legacy_authentication()` acknowledgement because it signs plaintext only.
 
 ```no_run
 use std::sync::Arc;
@@ -144,7 +263,15 @@ fn client(key_password: &[u8]) -> Result<SecureClient, Box<dyn std::error::Error
 # }
 ```
 
-Where an existing envelope wire can expand its signature coverage, select `AuthenticationMode::context_bound(domain)` and implement a `ProtocolAdapter` that returns the matching context-bound authentication context. This does not modernize the underlying CBC construction. `HeaderProtocolAdapter` is the explicit legacy-compatibility convenience.
+## Migrating an existing wire
+
+The envelope mode and the authentication mode are pinned by configuration with no negotiation and no fallback, so each migration step is a coordinated wire change on both ends, not a rolling client-side upgrade.
+
+**CBC → AEAD.** Enable the `aead` feature, select `EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm)`, and remove the `iv` setting — an AEAD configuration rejects a configured IV. A GCM envelope is not wire-compatible with a CBC envelope, and a client pinned to one mode rejects envelopes of the other outright, so both peers must switch in the same coordinated change. The SM2 signature, the key roles, and the wrapped-session-key construction are unchanged.
+
+**LegacyPlaintext → ContextBound.** Choose a fixed domain separator and version it like a wire format, select `AuthenticationMode::context_bound(domain)`, and implement a `ProtocolAdapter` whose request and response contexts the verifying peer can re-derive from data on the wire; `HeaderProtocolAdapter` cannot produce context-bound authentication. The signed transcript changes shape, so signatures made in one mode never verify in the other and peers must agree on the mode, the domain, and the exact context derivation. This expands signature coverage only — it does not modernize the underlying CBC construction or repair fixed-IV and mode-leakage risks.
+
+The two axes are independent: an existing deployment can adopt `ContextBound` while still on the CBC wire, and the end state for a migrated integration is the same as for a new one — AEAD with `ContextBound`.
 
 ## HTTP integration
 
@@ -203,5 +330,7 @@ Version 0.2.0 is unreleased; its release-candidate artifact set is recorded at p
 `rc-built` is evidence of repository gate completion, not approval for private exact-wire compatibility, independent security review, legal approval, production deployment, or publication. The blank [release checklist](RELEASE_CHECKLIST.md) defines those external states and is deliberately excluded from the Cargo package.
 
 ## Examples
+
+Both examples demonstrate the configuration recommended for new integrations — the SM4-GCM envelope mode with context-bound authentication and a caller-implemented `ProtocolAdapter` — and therefore declare `required-features = ["aead"]`; build them with `--features aead`. The fixed-IV CBC compatibility configuration appears only in the section above, labeled as such.
 
 `examples/build_request.rs` reads payload and role-specific key paths from command-line arguments and reads the key secret from `SECURE_ENVELOPE_KEY_PASSWORD`. It prints only header names and the encrypted body length. `examples/open_response.rs` reads a JSON response document containing header pairs and a body, then prints only the verified byte length. Neither example sends HTTP or prints header values, envelope bodies, verified plaintext, keys, or secrets.
