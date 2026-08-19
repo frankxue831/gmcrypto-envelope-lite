@@ -21,6 +21,8 @@ pub const AEAD_CIPHER_LIMIT: usize =
 pub const PADDED_CIPHER_BYTES: usize = (MAX_PLAINTEXT_BYTES / 16 + 1) * 16;
 pub const CIPHER_LIMIT: usize = PADDED_CIPHER_BYTES.div_ceil(3) * 4;
 pub const VALID_PLAINTEXT: &[u8] = b"fuzz envelope";
+pub const CONTEXT_DOMAIN_SEPARATOR: &[u8] = b"fuzz/domain-separator/v1";
+pub const DEFAULT_PROTOCOL_CONTEXT: &[u8] = b"operation=fuzz";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TransportScenario {
@@ -40,6 +42,26 @@ pub enum TransportScenario {
 pub enum TypedScenario {
     Valid,
     Duplicate,
+    Generic,
+}
+
+/// Scenarios for the context-bound envelope target.
+///
+/// The other envelope targets pin `LegacyPlaintext`, which is the posture the
+/// README tells people not to copy, so the preferred mode's transcript builder
+/// saw no fuzz input at all. These scenarios drive fuzzer-controlled protocol
+/// context and plaintext through it in both directions.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ContextScenario {
+    /// Seal and open under the same bound context.
+    RoundTrip,
+    /// Open under a bound context that differs from the sealing one.
+    MismatchedContext,
+    /// Open a context-bound envelope with the legacy marker.
+    LegacyMarker,
+    /// Seal a plaintext one byte over the configured limit.
+    OversizePlaintext,
+    /// Unconstrained input: exercised, but contract-free.
     Generic,
 }
 
@@ -70,6 +92,18 @@ impl TypedScenario {
         match self {
             Self::Valid => Some(ScenarioOutcome::Accepted),
             Self::Duplicate => Some(ScenarioOutcome::Rejected),
+            Self::Generic => None,
+        }
+    }
+}
+
+impl ContextScenario {
+    pub fn expected_outcome(self) -> Option<ScenarioOutcome> {
+        match self {
+            Self::RoundTrip => Some(ScenarioOutcome::Accepted),
+            Self::MismatchedContext | Self::LegacyMarker | Self::OversizePlaintext => {
+                Some(ScenarioOutcome::Rejected)
+            }
             Self::Generic => None,
         }
     }
@@ -136,6 +170,16 @@ pub fn typed_scenario(data: &[u8]) -> TypedScenario {
         Some(b'V') => TypedScenario::Valid,
         Some(b'D') => TypedScenario::Duplicate,
         _ => TypedScenario::Generic,
+    }
+}
+
+pub fn context_scenario(data: &[u8]) -> ContextScenario {
+    match data.first().copied() {
+        Some(b'R') => ContextScenario::RoundTrip,
+        Some(b'M') => ContextScenario::MismatchedContext,
+        Some(b'L') => ContextScenario::LegacyMarker,
+        Some(b'O') => ContextScenario::OversizePlaintext,
+        _ => ContextScenario::Generic,
     }
 }
 
@@ -626,6 +670,101 @@ fn mutate(valid: &str, raw: &[u8]) -> String {
         value[index] = if value[index] == b'A' { b'B' } else { b'A' };
     }
     String::from_utf8(value).expect("base64 is UTF-8")
+}
+
+pub fn context_client() -> &'static SecureClient {
+    static CLIENT: OnceLock<SecureClient> = OnceLock::new();
+    CLIENT.get_or_init(|| {
+        let mut scalar = [0_u8; 32];
+        scalar[31] = 7;
+        let private = Sm2PrivateKey::from_bytes_be(&scalar).expect("valid public test scalar");
+        let encrypted = pkcs8::encrypt(&private, TEST_PASSWORD, &[7_u8; 16], 1, &[8_u8; 16])
+            .expect("runtime-only encrypted fuzz key");
+        let public = spki::encode(&private.public_key());
+        let config = ClientConfig::builder()
+            .local_identity_id("fuzz-identity")
+            .api_version("fuzz-v1")
+            .local_certificate_id("fuzz-certificate")
+            .expected_remote_signing_certificate_id("fuzz-certificate")
+            .remote_encryption_certificate_id("fuzz-encryption-certificate")
+            .local_signer_id(b"fuzz-signer")
+            .expected_remote_signer_id(b"fuzz-signer")
+            .authentication_mode(
+                AuthenticationMode::context_bound(CONTEXT_DOMAIN_SEPARATOR)
+                    .expect("nonempty fuzz domain separator"),
+            )
+            .iv(*b"0123456789abcdef")
+            .max_plaintext_bytes(MAX_PLAINTEXT_BYTES)
+            .build()
+            .expect("fixed context-bound fuzz configuration");
+        let keys = KeyMaterial::shared(
+            PrivateKey::from_encrypted_der(&encrypted, TEST_PASSWORD)
+                .expect("runtime-only fuzz private key"),
+            PublicKey::from_der(&public).expect("runtime-only fuzz public key"),
+        );
+        SecureClient::new(
+            config,
+            keys,
+            Arc::new(HeaderProtocolAdapter::new(schema().clone())),
+        )
+    })
+}
+
+/// Seals fuzzer-controlled plaintext under a fuzzer-controlled bound context,
+/// then opens it under the context the scenario selects.
+///
+/// Panics when a round trip returns bytes other than the ones sealed. That
+/// equality — not merely "it opened" — is the invariant worth fuzzing here,
+/// because the context-bound transcript is length-prefixed and a framing bug
+/// would surface as a successful open of the wrong bytes.
+pub fn context_outcome(data: &[u8]) -> ScenarioOutcome {
+    let scenario = context_scenario(data);
+    let [plaintext_raw, context_raw, _] = fields(data);
+
+    let plaintext = match scenario {
+        ContextScenario::OversizePlaintext => vec![b'x'; MAX_PLAINTEXT_BYTES + 1],
+        _ => plaintext_raw
+            .get(..plaintext_raw.len().min(MAX_PLAINTEXT_BYTES))
+            .unwrap_or_default()
+            .to_vec(),
+    };
+
+    let sealing_bytes = if context_raw.is_empty() {
+        DEFAULT_PROTOCOL_CONTEXT.to_vec()
+    } else {
+        context_raw.to_vec()
+    };
+    let Ok(sealing_context) = AuthenticationContext::context_bound(sealing_bytes.clone()) else {
+        return ScenarioOutcome::Rejected;
+    };
+
+    let client = context_client();
+    let Ok(envelope) = client.seal(&plaintext, &sealing_context) else {
+        return ScenarioOutcome::Rejected;
+    };
+
+    let opening_context = match scenario {
+        ContextScenario::LegacyMarker => AuthenticationContext::legacy(),
+        ContextScenario::MismatchedContext => {
+            // Appending keeps the value non-empty and changes its length, so it
+            // differs from the sealing context for every fuzzer input.
+            let mut differing = sealing_bytes.clone();
+            differing.push(b'!');
+            AuthenticationContext::context_bound(differing).expect("nonempty bound context")
+        }
+        _ => sealing_context,
+    };
+
+    match client.open(&envelope, &opening_context) {
+        Ok(opened) => {
+            assert_eq!(
+                opened, plaintext,
+                "a context-bound round trip must return exactly the sealed plaintext"
+            );
+            ScenarioOutcome::Accepted
+        }
+        Err(_) => ScenarioOutcome::Rejected,
+    }
 }
 
 pub fn aead_client() -> &'static SecureClient {

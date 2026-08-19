@@ -43,3 +43,10 @@ path = "fuzz_targets/aead_envelope.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "context_envelope"
+path = "fuzz_targets/context_envelope.rs"
+test = false
+doc = false
+bench = false
