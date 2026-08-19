@@ -4,8 +4,6 @@ set -eu
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 . "$repo_root/ci/tool-versions.sh"
 unset RUSTUP_TOOLCHAIN
-snapshot="$repo_root/api/gmcrypto-envelope-lite-0.2.0.txt"
-aead_snapshot="$repo_root/api/gmcrypto-envelope-lite-0.2.0-aead.txt"
 which_cargo_error=
 which_rustc_error=
 toolchain_error=
@@ -19,6 +17,33 @@ fail() {
     echo "error: $*" >&2
     exit 1
 }
+
+# The snapshot filenames carry the crate's own identity, so derive it from
+# Cargo.toml instead of restating it here: a version bump must not require a
+# coupled edit in this script.
+package_field() {
+    field=$1
+    awk -v field="$field" '
+        /^\[package\][[:space:]]*$/ { in_package = 1; next }
+        /^\[/ { in_package = 0 }
+        in_package && $0 ~ "^[[:space:]]*" field "[[:space:]]*=" {
+            line = $0
+            sub("^[[:space:]]*" field "[[:space:]]*=[[:space:]]*\\\"", "", line)
+            if (line !~ "\\\"[[:space:]]*$") exit 2
+            sub("\\\"[[:space:]]*$", "", line)
+            if (line == "" || line ~ /[\"\\\/]/) exit 2
+            print line
+            matches += 1
+        }
+        END { if (matches != 1) exit 2 }
+    ' "$repo_root/Cargo.toml"
+}
+
+test -f "$repo_root/Cargo.toml" || fail "package manifest is missing"
+package_name=$(package_field name) || fail "could not read package name"
+package_version=$(package_field version) || fail "could not read package version"
+snapshot="$repo_root/api/$package_name-$package_version.txt"
+aead_snapshot="$repo_root/api/$package_name-$package_version-aead.txt"
 
 cleanup() {
     rm -f -- "$which_cargo_error" "$which_rustc_error" "$toolchain_error" \
@@ -98,11 +123,11 @@ fi
 
 if ! cmp -s "$snapshot" "$generated"; then
     diff -u "$snapshot" "$generated" || true
-    fail "public API differs from the 0.2.0 snapshot"
+    fail "public API differs from the $package_version snapshot"
 fi
 if ! cmp -s "$aead_snapshot" "$generated_aead"; then
     diff -u "$aead_snapshot" "$generated_aead" || true
-    fail "AEAD public API differs from the 0.2.0 snapshot"
+    fail "AEAD public API differs from the $package_version snapshot"
 fi
 
 echo "public API snapshot check passed"
