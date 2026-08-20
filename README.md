@@ -47,15 +47,15 @@ Because the legacy wire signature covers plaintext, opening a legacy envelope ne
 
 ## Choosing an envelope mode
 
-The envelope mode is pinned by `ClientConfig` and never inferred from incoming bytes: there is no negotiation and no fallback, and a client rejects envelopes of the other mode outright. `AuthenticationMode` (what the SM2 signature covers) is an independent axis and composes with both modes.
+The envelope mode and AEAD algorithm are pinned by `ClientConfig` and never inferred from incoming bytes: there is no negotiation and no fallback, and a client rejects envelopes of another mode or algorithm outright. `AuthenticationMode` (what the SM2 signature covers) is an independent axis and composes with every mode.
 
-| | `EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm)` — feature `aead` | `EnvelopeMode::LegacyCbc` — default |
-| --- | --- | --- |
-| Payload cipher | SM4-GCM with a fresh random 12-byte nonce per envelope | SM4-CBC with the configured fixed IV |
-| Ciphertext integrity | AEAD tag, verified before any plaintext is produced | none from the cipher; only the SM2 signature, after decryption |
-| Bound metadata | frame header always; domain separator and protocol context under `ContextBound` (empty fields under `LegacyPlaintext`), all in the AAD | signed transcript only |
-| Replay protection | none — application concern | none — application concern |
-| Intended use | new integrations | existing deployed wires, supported indefinitely |
+| | `EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm)` — feature `aead` (recommended AEAD) | `EnvelopeMode::Aead(AeadAlgorithm::Sm4Ccm)` — feature `aead` | `EnvelopeMode::LegacyCbc` — default |
+| --- | --- | --- | --- |
+| Payload cipher | SM4-GCM with a fresh random 12-byte nonce per envelope | SM4-CCM with a fresh random 12-byte nonce per envelope; frame id `0x02`; plaintext ceiling `SM4_CCM_MAX_PLAINTEXT_BYTES` (`2^24 - 1`) | SM4-CBC with the configured fixed IV |
+| Ciphertext integrity | AEAD tag, verified before any plaintext is produced | AEAD tag; CCM decrypts CTR plaintext before verifying CBC-MAC, then wipes on tag failure | none from the cipher; only the SM2 signature, after decryption |
+| Bound metadata | frame header always; domain separator and protocol context under `ContextBound` (empty fields under `LegacyPlaintext`), all in the AAD | same AAD as GCM | signed transcript only |
+| Replay protection | none — application concern | none — application concern | none — application concern |
+| Intended use | new integrations | peers that require CCM on the wire | existing deployed wires, supported indefinitely |
 
 The SM2 signature remains mandatory under AEAD: the session key is encrypted to a public key, so the tag alone proves nothing about who sealed the envelope. An AEAD configuration must not set `iv`:
 
@@ -267,7 +267,7 @@ fn client(key_password: &[u8]) -> Result<SecureClient, Box<dyn std::error::Error
 
 The envelope mode and the authentication mode are pinned by configuration with no negotiation and no fallback, so each migration step is a coordinated wire change on both ends, not a rolling client-side upgrade.
 
-**CBC → AEAD.** Enable the `aead` feature, select `EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm)`, and remove the `iv` setting — an AEAD configuration rejects a configured IV. A GCM envelope is not wire-compatible with a CBC envelope, and a client pinned to one mode rejects envelopes of the other outright, so both peers must switch in the same coordinated change. The SM2 signature, the key roles, and the wrapped-session-key construction are unchanged.
+**CBC → AEAD.** Enable the `aead` feature, select `EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm)` (the recommended AEAD) or `AeadAlgorithm::Sm4Ccm`, and remove the `iv` setting — an AEAD configuration rejects a configured IV. GCM, CCM, and CBC envelopes are not wire-compatible with each other, and a client pinned to one rejects the others outright, so both peers must switch in the same coordinated change. The SM2 signature, the key roles, and the wrapped-session-key construction are unchanged.
 
 **LegacyPlaintext → ContextBound.** Choose a fixed domain separator and version it like a wire format, select `AuthenticationMode::context_bound(domain)`, and derive request and response contexts the verifying peer can re-derive from data on the wire. Header-mapped wires may use `HeaderProtocolAdapter` when they adopt the crate-owned version-1 binary encoding via `.context_bound_authentication()`. ASCII `operation={op}&request-id={id}` is not this crate's header-adapter encoding; custom `ProtocolAdapter` implementations may still use it if both ends agree. The signed transcript changes shape, so signatures made in one mode never verify in the other and peers must agree on the mode, the domain, and the exact context derivation. This expands signature coverage only — it does not modernize the underlying CBC construction or repair fixed-IV and mode-leakage risks.
 

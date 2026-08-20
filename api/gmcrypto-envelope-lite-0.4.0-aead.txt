@@ -14,6 +14,7 @@ pub fn gmcrypto_envelope_lite::AdapterErrorKind::fmt(&self, &mut core::fmt::Form
 impl core::marker::Copy for gmcrypto_envelope_lite::AdapterErrorKind
 impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::AdapterErrorKind
 #[non_exhaustive] pub enum gmcrypto_envelope_lite::AeadAlgorithm
+pub gmcrypto_envelope_lite::AeadAlgorithm::Sm4Ccm
 pub gmcrypto_envelope_lite::AeadAlgorithm::Sm4Gcm
 impl core::clone::Clone for gmcrypto_envelope_lite::AeadAlgorithm
 pub fn gmcrypto_envelope_lite::AeadAlgorithm::clone(&self) -> gmcrypto_envelope_lite::AeadAlgorithm
@@ -425,6 +426,7 @@ pub fn gmcrypto_envelope_lite::SecureEnvelope::serialize<__S>(&self, __S) -> cor
 impl<'de> serde_core::de::Deserialize<'de> for gmcrypto_envelope_lite::SecureEnvelope
 pub fn gmcrypto_envelope_lite::SecureEnvelope::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
 pub const gmcrypto_envelope_lite::DEFAULT_MAX_PLAINTEXT_BYTES: usize
+pub const gmcrypto_envelope_lite::SM4_CCM_MAX_PLAINTEXT_BYTES: usize
 pub trait gmcrypto_envelope_lite::ProtocolAdapter: core::marker::Send + core::marker::Sync
 pub fn gmcrypto_envelope_lite::ProtocolAdapter::build_request(&self, &gmcrypto_envelope_lite::ClientIdentity, &gmcrypto_envelope_lite::ProtocolRequestContext, &gmcrypto_envelope_lite::SecureEnvelope) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::RequestParts>
 pub fn gmcrypto_envelope_lite::ProtocolAdapter::parse_response(&self, gmcrypto_envelope_lite::ResponseParts) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::ParsedResponse>
