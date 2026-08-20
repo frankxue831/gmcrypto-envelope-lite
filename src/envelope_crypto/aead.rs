@@ -15,6 +15,7 @@ use crate::{AuthenticationContext, ClientConfig, Error, KeyMaterial, Result};
 
 const FRAME_VERSION: u8 = 0x01;
 const ALGORITHM_SM4_GCM: u8 = 0x01;
+const ALGORITHM_SM4_CCM: u8 = 0x02;
 const FRAME_HEADER_BYTES: usize = 14;
 const NONCE_BYTES: usize = 12;
 const TAG_BYTES: usize = 16;
@@ -23,6 +24,56 @@ const FRAME_OVERHEAD_BYTES: usize = FRAME_HEADER_BYTES + TAG_BYTES;
 fn algorithm_byte(algorithm: AeadAlgorithm) -> u8 {
     match algorithm {
         AeadAlgorithm::Sm4Gcm => ALGORITHM_SM4_GCM,
+        AeadAlgorithm::Sm4Ccm => ALGORITHM_SM4_CCM,
+    }
+}
+
+fn split_ciphertext_and_tag(mut joined: Vec<u8>) -> Option<(Vec<u8>, [u8; TAG_BYTES])> {
+    if joined.len() < TAG_BYTES {
+        return None;
+    }
+    let tag_bytes = joined.split_off(joined.len() - TAG_BYTES);
+    let tag = <[u8; TAG_BYTES]>::try_from(tag_bytes).ok()?;
+    Some((joined, tag))
+}
+
+fn aead_encrypt(
+    algorithm: AeadAlgorithm,
+    session_key: &[u8; 16],
+    nonce: &[u8],
+    aad: &[u8],
+    plaintext: &[u8],
+) -> Result<(Vec<u8>, [u8; TAG_BYTES])> {
+    match algorithm {
+        AeadAlgorithm::Sm4Gcm => {
+            sm4::mode_gcm::encrypt(session_key, nonce, aad, plaintext).ok_or(Error::Encryption)
+        }
+        AeadAlgorithm::Sm4Ccm => {
+            let joined = sm4::mode_ccm::encrypt(session_key, nonce, aad, plaintext, TAG_BYTES)
+                .ok_or(Error::Encryption)?;
+            split_ciphertext_and_tag(joined).ok_or(Error::Encryption)
+        }
+    }
+}
+
+fn aead_decrypt(
+    algorithm: AeadAlgorithm,
+    session_key: &[u8; 16],
+    nonce: &[u8],
+    aad: &[u8],
+    ciphertext: &[u8],
+    tag: &[u8; TAG_BYTES],
+) -> Result<Vec<u8>> {
+    match algorithm {
+        AeadAlgorithm::Sm4Gcm => sm4::mode_gcm::decrypt(session_key, nonce, aad, ciphertext, tag)
+            .ok_or(Error::InvalidEnvelope),
+        AeadAlgorithm::Sm4Ccm => {
+            let mut joined = Vec::with_capacity(ciphertext.len() + TAG_BYTES);
+            joined.extend_from_slice(ciphertext);
+            joined.extend_from_slice(tag);
+            sm4::mode_ccm::decrypt(session_key, nonce, aad, &joined, TAG_BYTES)
+                .ok_or(Error::InvalidEnvelope)
+        }
     }
 }
 
@@ -49,8 +100,7 @@ pub(super) fn seal(
         .authentication_mode()
         .aead_aad(context, &frame_header)?;
 
-    let (ciphertext, tag) =
-        sm4::mode_gcm::encrypt(&session_key, &nonce, &aad, plaintext).ok_or(Error::Encryption)?;
+    let (ciphertext, tag) = aead_encrypt(algorithm, &session_key, &nonce, &aad, plaintext)?;
 
     let frame_len = FRAME_OVERHEAD_BYTES
         .checked_add(ciphertext.len())
@@ -126,10 +176,14 @@ pub(super) fn open(
         .authentication_mode()
         .aead_aad(context, &frame_header)
         .map_err(|_| Error::InvalidEnvelope)?;
-    let plaintext = Zeroizing::new(
-        sm4::mode_gcm::decrypt(&session_key, nonce, &aad, ciphertext, &tag)
-            .ok_or(Error::InvalidEnvelope)?,
-    );
+    let plaintext = Zeroizing::new(aead_decrypt(
+        algorithm,
+        &session_key,
+        nonce,
+        &aad,
+        ciphertext,
+        &tag,
+    )?);
 
     let authentication_input = config
         .authentication_mode()
