@@ -210,8 +210,8 @@ mod tests {
 
     use crate::envelope_crypto::test_support::{
         RECEIVER_DECRYPTION, RECEIVER_SIGNING, SENDER_DECRYPTION, SENDER_SIGNING, UNRELATED_KEY,
-        aead_peers, assert_invalid_envelope, key_material, legacy_context, raw_private_key,
-        wrapped_plaintext_for_receiver,
+        aead_peers, assert_invalid_envelope, ccm_peers, key_material, legacy_context,
+        raw_private_key, wrapped_plaintext_for_receiver,
     };
     use crate::envelope_crypto::{open, seal};
     use crate::message::SecureEnvelope;
@@ -609,6 +609,7 @@ mod tests {
             crate::envelope_crypto::test_support::SENDER_SIGNER_ID,
             receiver_mode,
             256,
+            crate::AeadAlgorithm::Sm4Gcm,
         );
         let context =
             AuthenticationContext::context_bound(b"operation=pay&id=17").expect("bound context");
@@ -883,5 +884,268 @@ mod tests {
             &aead_envelope,
             &legacy_context(),
         ));
+    }
+
+    #[test]
+    fn ccm_round_trips_in_both_directions_with_distinct_roles() {
+        let peers = ccm_peers(AuthenticationMode::LegacyPlaintext, 256);
+        let context = legacy_context();
+        let request = b"ccm request payload \x00 with binary bytes";
+
+        let envelope = seal(&peers.sender_config, &peers.sender_keys, request, &context)
+            .expect("sender seals");
+        let frame = STANDARD.decode(&envelope.cipher).expect("cipher Base64");
+        assert_eq!(frame.len(), request.len() + FRAME_OVERHEAD_BYTES);
+        assert_eq!(frame[0], 0x01, "frame version");
+        assert_eq!(frame[1], 0x02, "SM4-CCM algorithm id");
+        assert_eq!(
+            open(
+                &peers.receiver_config,
+                &peers.receiver_keys,
+                &envelope,
+                &context,
+            )
+            .expect("receiver opens"),
+            request
+        );
+
+        let response = b"ccm response uses inverse directional roles";
+        let reply = seal(
+            &peers.receiver_config,
+            &peers.receiver_keys,
+            response,
+            &context,
+        )
+        .expect("receiver seals");
+        assert_eq!(
+            open(&peers.sender_config, &peers.sender_keys, &reply, &context).expect("sender opens"),
+            response
+        );
+    }
+
+    #[test]
+    fn ccm_context_bound_round_trip_rejects_wrong_or_mismatched_contexts() {
+        let mode = AuthenticationMode::context_bound(b"example/ccm/v1").expect("domain");
+        let peers = ccm_peers(mode, 256);
+        let context =
+            AuthenticationContext::context_bound(b"operation=pay&id=17").expect("bound context");
+        let envelope = seal(
+            &peers.sender_config,
+            &peers.sender_keys,
+            b"context-bound ccm payload",
+            &context,
+        )
+        .expect("seal context-bound payload");
+
+        assert_eq!(
+            open(
+                &peers.receiver_config,
+                &peers.receiver_keys,
+                &envelope,
+                &context,
+            )
+            .expect("matching context opens"),
+            b"context-bound ccm payload"
+        );
+
+        let different =
+            AuthenticationContext::context_bound(b"operation=pay&id=18").expect("other context");
+        assert_invalid_envelope(open(
+            &peers.receiver_config,
+            &peers.receiver_keys,
+            &envelope,
+            &different,
+        ));
+        assert_invalid_envelope(open(
+            &peers.receiver_config,
+            &peers.receiver_keys,
+            &envelope,
+            &legacy_context(),
+        ));
+
+        let seal_error = seal(
+            &peers.sender_config,
+            &peers.sender_keys,
+            b"wrong context kind",
+            &legacy_context(),
+        )
+        .expect_err("outbound context mismatch must be specific");
+        assert!(matches!(seal_error, Error::AuthenticationContext));
+    }
+
+    #[test]
+    fn ccm_round_trips_empty_boundary_and_unicode_plaintext() {
+        let peers = ccm_peers(AuthenticationMode::LegacyPlaintext, 64);
+        for plaintext in [
+            &b""[..],
+            &[0xa5_u8; 64][..],
+            "你好，secure envelope 🔐 — café".as_bytes(),
+        ] {
+            let envelope = seal(
+                &peers.sender_config,
+                &peers.sender_keys,
+                plaintext,
+                &legacy_context(),
+            )
+            .expect("seal boundary payload");
+            assert_eq!(
+                open(
+                    &peers.receiver_config,
+                    &peers.receiver_keys,
+                    &envelope,
+                    &legacy_context(),
+                )
+                .expect("open boundary payload"),
+                plaintext
+            );
+        }
+    }
+
+    #[test]
+    fn ccm_plaintext_length_sweep_round_trips_across_frame_and_base64_boundaries() {
+        const LENGTHS: &[usize] = &[
+            0, 1, 2, 3, 4, 5, 15, 16, 17, 31, 32, 33, 63, 64, 65, 255, 256, 257, 1023, 1024, 1025,
+        ];
+
+        let cases = [
+            (AuthenticationMode::LegacyPlaintext, legacy_context()),
+            (
+                AuthenticationMode::context_bound(b"example/ccm-sweep/v1")
+                    .expect("nonempty domain separator"),
+                AuthenticationContext::context_bound(b"operation=sweep").expect("bound context"),
+            ),
+        ];
+
+        for (mode, context) in cases {
+            let peers = ccm_peers(mode, 2048);
+            for &length in LENGTHS {
+                let plaintext: Vec<u8> = (0..length).map(|index| (index % 251) as u8).collect();
+                let envelope = seal(
+                    &peers.sender_config,
+                    &peers.sender_keys,
+                    &plaintext,
+                    &context,
+                )
+                .unwrap_or_else(|error| panic!("seal {length} bytes: {error}"));
+                let framed = STANDARD
+                    .decode(&envelope.cipher)
+                    .expect("framed cipher is Base64");
+                assert_eq!(
+                    framed.len(),
+                    length + FRAME_OVERHEAD_BYTES,
+                    "frame overhead must stay constant at {length} bytes"
+                );
+                let opened = open(
+                    &peers.receiver_config,
+                    &peers.receiver_keys,
+                    &envelope,
+                    &context,
+                )
+                .unwrap_or_else(|error| panic!("open {length} bytes: {error}"));
+                assert_eq!(
+                    opened.as_slice(),
+                    plaintext.as_slice(),
+                    "round trip must be exact at {length} bytes"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_ccm_seal_uses_a_fresh_session_key_and_nonce() {
+        let peers = ccm_peers(AuthenticationMode::LegacyPlaintext, 128);
+        let plaintext = b"same payload";
+        let first = seal(
+            &peers.sender_config,
+            &peers.sender_keys,
+            plaintext,
+            &legacy_context(),
+        )
+        .expect("first seal");
+        let second = seal(
+            &peers.sender_config,
+            &peers.sender_keys,
+            plaintext,
+            &legacy_context(),
+        )
+        .expect("second seal");
+
+        let first_frame = STANDARD.decode(&first.cipher).expect("first frame");
+        let second_frame = STANDARD.decode(&second.cipher).expect("second frame");
+        assert_ne!(
+            first_frame[2..FRAME_HEADER_BYTES],
+            second_frame[2..FRAME_HEADER_BYTES],
+            "nonces must differ"
+        );
+        assert_ne!(first.cipher, second.cipher);
+
+        let receiver_private = raw_private_key(RECEIVER_DECRYPTION);
+        let first_wrapped = STANDARD
+            .decode(first.wrapped_session_key)
+            .expect("first wrapped key Base64");
+        let second_wrapped = STANDARD
+            .decode(second.wrapped_session_key)
+            .expect("second wrapped key Base64");
+        let first_key = Zeroizing::new(
+            sm2::decrypt(&receiver_private, &first_wrapped).expect("unwrap first session key"),
+        );
+        let second_key = Zeroizing::new(
+            sm2::decrypt(&receiver_private, &second_wrapped).expect("unwrap second session key"),
+        );
+        assert_ne!(*first_key, *second_key);
+    }
+
+    #[test]
+    fn ccm_seal_rejects_plaintext_over_the_configured_limit() {
+        let peers = ccm_peers(AuthenticationMode::LegacyPlaintext, 8);
+        let error = seal(
+            &peers.sender_config,
+            &peers.sender_keys,
+            b"123456789",
+            &legacy_context(),
+        )
+        .expect_err("oversized outbound plaintext");
+        assert!(matches!(error, Error::MessageTooLarge { limit: 8 }));
+    }
+
+    #[test]
+    fn ccm_client_at_the_nonce_ceiling_still_round_trips_a_small_payload() {
+        let peers = ccm_peers(
+            AuthenticationMode::LegacyPlaintext,
+            crate::SM4_CCM_MAX_PLAINTEXT_BYTES,
+        );
+        assert_eq!(
+            peers.sender_config.max_plaintext_bytes(),
+            crate::SM4_CCM_MAX_PLAINTEXT_BYTES
+        );
+        let plaintext = b"under the q=3 ceiling";
+        let envelope = seal(
+            &peers.sender_config,
+            &peers.sender_keys,
+            plaintext,
+            &legacy_context(),
+        )
+        .expect("ceiling-configured client seals");
+        assert_eq!(
+            open(
+                &peers.receiver_config,
+                &peers.receiver_keys,
+                &envelope,
+                &legacy_context(),
+            )
+            .expect("ceiling-configured client opens"),
+            plaintext
+        );
+    }
+
+    #[test]
+    fn ccm_primitive_rejects_plaintext_above_the_12_byte_nonce_ceiling() {
+        let key = [0x42_u8; 16];
+        let nonce = [0_u8; 12];
+        let over = vec![0_u8; crate::SM4_CCM_MAX_PLAINTEXT_BYTES + 1];
+        assert!(
+            gmcrypto_core::sm4::mode_ccm::encrypt(&key, &nonce, &[], &over, 16).is_none(),
+            "q=3 must reject 16 MiB plaintext before encrypting"
+        );
     }
 }
