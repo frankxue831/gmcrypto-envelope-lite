@@ -730,6 +730,104 @@ mod tests {
     }
 
     #[test]
+    fn ccm_seal_tag_binds_literal_label_header_domain_and_context() {
+        const LABEL: &[u8] = b"gmcrypto-envelope-lite/aead-aad/v1";
+        const DOMAIN: &[u8] = b"example/request/v1";
+        const CONTEXT: &[u8] = b"operation=pay&id=17";
+        const PLAINTEXT: &[u8] = b"independently verified CCM AAD";
+
+        let mode = AuthenticationMode::context_bound(DOMAIN).expect("sender domain");
+        let peers = ccm_peers(mode, 256);
+        let context = AuthenticationContext::context_bound(CONTEXT).expect("bound context");
+        let envelope = seal(
+            &peers.sender_config,
+            &peers.sender_keys,
+            PLAINTEXT,
+            &context,
+        )
+        .expect("seal context-bound envelope");
+        let untouched_envelope = envelope.clone();
+
+        let wrapped_session_key = STANDARD
+            .decode(&envelope.wrapped_session_key)
+            .expect("wrapped key Base64");
+        let receiver_private = raw_private_key(RECEIVER_DECRYPTION);
+        let unwrapped_session_key = Zeroizing::new(
+            sm2::decrypt(&receiver_private, &wrapped_session_key).expect("unwrap session key"),
+        );
+        let session_key: &[u8; 16] = unwrapped_session_key
+            .as_slice()
+            .try_into()
+            .expect("16-byte session key");
+
+        let frame = STANDARD.decode(&envelope.cipher).expect("cipher Base64");
+        assert_eq!(frame.len(), FRAME_OVERHEAD_BYTES + PLAINTEXT.len());
+        let frame_header: &[u8; FRAME_HEADER_BYTES] = frame[..FRAME_HEADER_BYTES]
+            .try_into()
+            .expect("14-byte frame header");
+        assert_eq!(frame_header[0], 0x01, "frame version");
+        assert_eq!(frame_header[1], 0x02, "SM4-CCM algorithm id");
+        let ciphertext_end = frame.len() - TAG_BYTES;
+        let ciphertext = &frame[FRAME_HEADER_BYTES..ciphertext_end];
+        let tag = &frame[ciphertext_end..];
+        let nonce = &frame_header[2..];
+
+        let mut joined = Vec::with_capacity(ciphertext.len() + TAG_BYTES);
+        joined.extend_from_slice(ciphertext);
+        joined.extend_from_slice(tag);
+
+        let expected_aad = literal_aad(LABEL, frame_header, DOMAIN, CONTEXT);
+        assert_eq!(
+            gmcrypto_core::sm4::mode_ccm::decrypt(session_key, nonce, &expected_aad, &joined, 16)
+                .expect("literal four-field AAD verifies the sealed CCM tag"),
+            PLAINTEXT
+        );
+
+        let mut different_header = *frame_header;
+        different_header[0] ^= 0x01;
+        for (field, different_aad) in [
+            (
+                "domain label",
+                literal_aad(
+                    b"gmcrypto-envelope-lite/aead-aad/v2",
+                    frame_header,
+                    DOMAIN,
+                    CONTEXT,
+                ),
+            ),
+            (
+                "frame header",
+                literal_aad(LABEL, &different_header, DOMAIN, CONTEXT),
+            ),
+            (
+                "domain separator",
+                literal_aad(LABEL, frame_header, b"example/response/v1", CONTEXT),
+            ),
+            (
+                "protocol context",
+                literal_aad(LABEL, frame_header, DOMAIN, b"operation=pay&id=18"),
+            ),
+        ] {
+            assert!(
+                gmcrypto_core::sm4::mode_ccm::decrypt(
+                    session_key,
+                    nonce,
+                    &different_aad,
+                    &joined,
+                    16,
+                )
+                .is_none(),
+                "changing the {field} must fail primitive CCM tag verification"
+            );
+        }
+
+        assert_eq!(
+            envelope, untouched_envelope,
+            "AAD-only mutations must not alter the sealed envelope or its signature"
+        );
+    }
+
+    #[test]
     fn aead_oversized_encoded_and_decoded_ciphers_split_the_public_bounds() {
         // Limit 17: max frame is 47 bytes, whose Base64 length is 64.
         let peers = aead_peers(AuthenticationMode::LegacyPlaintext, 17);
