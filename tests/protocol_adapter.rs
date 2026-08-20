@@ -452,6 +452,15 @@ fn schema_allows_the_same_names_in_opposite_directions() {
 }
 
 #[test]
+fn context_bound_schema_rejects_request_id_collision_with_response_headers() {
+    let error = context_bound_schema_builder()
+        .response_signature_header("X-Demo-Request-Id")
+        .build()
+        .expect_err("request-id reused on the response");
+    assert_eq!(error.kind(), AdapterErrorKind::InvalidMapping);
+}
+
+#[test]
 fn response_parser_rejects_missing_and_empty_required_fields() {
     let adapter = HeaderProtocolAdapter::new(schema());
     let complete_headers = response_headers();
