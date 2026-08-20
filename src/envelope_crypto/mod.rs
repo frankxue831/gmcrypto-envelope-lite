@@ -219,6 +219,20 @@ pub(crate) mod test_support {
 
     #[cfg(feature = "aead")]
     pub(crate) fn aead_peers(mode: AuthenticationMode, max_plaintext_bytes: usize) -> Peers {
+        aead_peers_with(mode, max_plaintext_bytes, crate::AeadAlgorithm::Sm4Gcm)
+    }
+
+    #[cfg(feature = "aead")]
+    pub(crate) fn ccm_peers(mode: AuthenticationMode, max_plaintext_bytes: usize) -> Peers {
+        aead_peers_with(mode, max_plaintext_bytes, crate::AeadAlgorithm::Sm4Ccm)
+    }
+
+    #[cfg(feature = "aead")]
+    fn aead_peers_with(
+        mode: AuthenticationMode,
+        max_plaintext_bytes: usize,
+        algorithm: crate::AeadAlgorithm,
+    ) -> Peers {
         Peers {
             sender_config: aead_config(
                 "sender",
@@ -226,6 +240,7 @@ pub(crate) mod test_support {
                 RECEIVER_SIGNER_ID,
                 mode.clone(),
                 max_plaintext_bytes,
+                algorithm,
             ),
             sender_keys: key_material(
                 SENDER_SIGNING,
@@ -239,6 +254,7 @@ pub(crate) mod test_support {
                 SENDER_SIGNER_ID,
                 mode,
                 max_plaintext_bytes,
+                algorithm,
             ),
             receiver_keys: key_material(
                 RECEIVER_SIGNING,
@@ -256,6 +272,7 @@ pub(crate) mod test_support {
         expected_remote_signer_id: &[u8],
         mode: AuthenticationMode,
         max_plaintext_bytes: usize,
+        algorithm: crate::AeadAlgorithm,
     ) -> ClientConfig {
         ClientConfig::builder()
             .local_identity_id(format!("{name}-identity"))
@@ -266,7 +283,7 @@ pub(crate) mod test_support {
             .local_signer_id(local_signer_id)
             .expected_remote_signer_id(expected_remote_signer_id)
             .authentication_mode(mode)
-            .envelope_mode(crate::EnvelopeMode::Aead(crate::AeadAlgorithm::Sm4Gcm))
+            .envelope_mode(crate::EnvelopeMode::Aead(algorithm))
             .max_plaintext_bytes(max_plaintext_bytes)
             .build()
             .expect("valid AEAD test configuration")
