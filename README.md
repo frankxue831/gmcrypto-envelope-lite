@@ -199,7 +199,7 @@ The domain separator is fixed in configuration and versioned like a wire format;
 
 ### Compatibility mode: an existing CBC wire
 
-An already-deployed fixed-IV CBC wire remains supported indefinitely; configure it explicitly as the compatibility mode it is. `HeaderProtocolAdapter` is the legacy-compatibility convenience for header-mapped wires, and its schema requires the explicit `legacy_authentication()` acknowledgement because it signs plaintext only.
+An already-deployed fixed-IV CBC wire remains supported indefinitely; configure it explicitly as the compatibility mode it is. For header-mapped wires, `.context_bound_authentication()` with `AuthenticationMode::ContextBound` is the convenience when both ends use the crate-owned version-1 binary context. The schema below uses the explicit `.legacy_authentication()` acknowledgement because the compatibility mode signs plaintext only.
 
 ```no_run
 use std::sync::Arc;
@@ -269,7 +269,7 @@ The envelope mode and the authentication mode are pinned by configuration with n
 
 **CBC → AEAD.** Enable the `aead` feature, select `EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm)`, and remove the `iv` setting — an AEAD configuration rejects a configured IV. A GCM envelope is not wire-compatible with a CBC envelope, and a client pinned to one mode rejects envelopes of the other outright, so both peers must switch in the same coordinated change. The SM2 signature, the key roles, and the wrapped-session-key construction are unchanged.
 
-**LegacyPlaintext → ContextBound.** Choose a fixed domain separator and version it like a wire format, select `AuthenticationMode::context_bound(domain)`, and implement a `ProtocolAdapter` whose request and response contexts the verifying peer can re-derive from data on the wire; `HeaderProtocolAdapter` cannot produce context-bound authentication. The signed transcript changes shape, so signatures made in one mode never verify in the other and peers must agree on the mode, the domain, and the exact context derivation. This expands signature coverage only — it does not modernize the underlying CBC construction or repair fixed-IV and mode-leakage risks.
+**LegacyPlaintext → ContextBound.** Choose a fixed domain separator and version it like a wire format, select `AuthenticationMode::context_bound(domain)`, and derive request and response contexts the verifying peer can re-derive from data on the wire. Header-mapped wires may use `HeaderProtocolAdapter` when they adopt the crate-owned version-1 binary encoding via `.context_bound_authentication()`. ASCII `operation={op}&request-id={id}` is not this crate's header-adapter encoding; custom `ProtocolAdapter` implementations may still use it if both ends agree. The signed transcript changes shape, so signatures made in one mode never verify in the other and peers must agree on the mode, the domain, and the exact context derivation. This expands signature coverage only — it does not modernize the underlying CBC construction or repair fixed-IV and mode-leakage risks.
 
 The two axes are independent: an existing deployment can adopt `ContextBound` while still on the CBC wire, and the end state for a migrated integration is the same as for a new one — AEAD with `ContextBound`.
 
