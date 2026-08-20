@@ -61,8 +61,16 @@ fn schema() -> HeaderSchema {
 }
 
 fn aead_client() -> SecureClient {
+    aead_client_with(AeadAlgorithm::Sm4Gcm)
+}
+
+fn ccm_client() -> SecureClient {
+    aead_client_with(AeadAlgorithm::Sm4Ccm)
+}
+
+fn aead_client_with(algorithm: AeadAlgorithm) -> SecureClient {
     let config = base_builder()
-        .envelope_mode(EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm))
+        .envelope_mode(EnvelopeMode::Aead(algorithm))
         .build()
         .expect("AEAD configuration");
     SecureClient::new(
@@ -117,12 +125,17 @@ fn secure_client_round_trips_aead_envelopes_through_a_header_adapter() {
 #[test]
 fn aead_and_cbc_secure_clients_reject_each_other_s_envelopes() {
     let aead = aead_client();
+    let ccm = ccm_client();
     let cbc = cbc_client();
     let context = AuthenticationContext::legacy();
 
-    let aead_envelope = aead.seal(b"aead payload", &context).expect("AEAD seal");
+    let aead_envelope = aead.seal(b"aead payload", &context).expect("GCM seal");
     assert!(matches!(
         cbc.open(&aead_envelope, &context),
+        Err(Error::InvalidEnvelope)
+    ));
+    assert!(matches!(
+        ccm.open(&aead_envelope, &context),
         Err(Error::InvalidEnvelope)
     ));
 
@@ -131,4 +144,45 @@ fn aead_and_cbc_secure_clients_reject_each_other_s_envelopes() {
         aead.open(&cbc_envelope, &context),
         Err(Error::InvalidEnvelope)
     ));
+    assert!(matches!(
+        ccm.open(&cbc_envelope, &context),
+        Err(Error::InvalidEnvelope)
+    ));
+
+    let ccm_envelope = ccm.seal(b"ccm payload", &context).expect("CCM seal");
+    assert!(matches!(
+        aead.open(&ccm_envelope, &context),
+        Err(Error::InvalidEnvelope)
+    ));
+    assert!(matches!(
+        cbc.open(&ccm_envelope, &context),
+        Err(Error::InvalidEnvelope)
+    ));
+}
+
+#[test]
+fn secure_client_round_trips_ccm_envelopes_through_a_header_adapter() {
+    let client = ccm_client();
+    let plaintext = b"adapter-mapped ccm payload";
+    let envelope = client
+        .seal(plaintext, &AuthenticationContext::legacy())
+        .expect("seal");
+    let response = ResponseParts::new(
+        [
+            ("X-It-Response-Signature", envelope.signature.clone()),
+            (
+                "X-It-Response-Wrapped-Key",
+                envelope.wrapped_session_key.clone(),
+            ),
+            (
+                "X-It-Response-Remote-Signing-Certificate",
+                "integration-certificate".to_owned(),
+            ),
+        ],
+        envelope.cipher.clone(),
+    );
+    assert_eq!(
+        client.open_response(response).expect("open response"),
+        plaintext
+    );
 }

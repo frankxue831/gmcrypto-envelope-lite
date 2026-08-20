@@ -769,39 +769,44 @@ pub fn context_outcome(data: &[u8]) -> ScenarioOutcome {
 
 pub fn aead_client() -> &'static SecureClient {
     static CLIENT: OnceLock<SecureClient> = OnceLock::new();
-    CLIENT.get_or_init(|| {
-        let mut scalar = [0_u8; 32];
-        scalar[31] = 7;
-        let private = Sm2PrivateKey::from_bytes_be(&scalar).expect("valid public test scalar");
-        let encrypted = pkcs8::encrypt(&private, TEST_PASSWORD, &[7_u8; 16], 1, &[8_u8; 16])
-            .expect("runtime-only encrypted fuzz key");
-        let public = spki::encode(&private.public_key());
-        let config = ClientConfig::builder()
-            .local_identity_id("fuzz-identity")
-            .api_version("fuzz-v1")
-            .local_certificate_id("fuzz-certificate")
-            .expected_remote_signing_certificate_id("fuzz-certificate")
-            .remote_encryption_certificate_id("fuzz-encryption-certificate")
-            .local_signer_id(b"fuzz-signer")
-            .expected_remote_signer_id(b"fuzz-signer")
-            .authentication_mode(AuthenticationMode::LegacyPlaintext)
-            .envelope_mode(gmcrypto_envelope_lite::EnvelopeMode::Aead(
-                gmcrypto_envelope_lite::AeadAlgorithm::Sm4Gcm,
-            ))
-            .max_plaintext_bytes(MAX_PLAINTEXT_BYTES)
-            .build()
-            .expect("fixed AEAD fuzz configuration");
-        let keys = KeyMaterial::shared(
-            PrivateKey::from_encrypted_der(&encrypted, TEST_PASSWORD)
-                .expect("runtime-only fuzz private key"),
-            PublicKey::from_der(&public).expect("runtime-only fuzz public key"),
-        );
-        SecureClient::new(
-            config,
-            keys,
-            Arc::new(HeaderProtocolAdapter::new(schema().clone())),
-        )
-    })
+    CLIENT.get_or_init(|| aead_client_with(gmcrypto_envelope_lite::AeadAlgorithm::Sm4Gcm))
+}
+
+pub fn ccm_client() -> &'static SecureClient {
+    static CLIENT: OnceLock<SecureClient> = OnceLock::new();
+    CLIENT.get_or_init(|| aead_client_with(gmcrypto_envelope_lite::AeadAlgorithm::Sm4Ccm))
+}
+
+fn aead_client_with(algorithm: gmcrypto_envelope_lite::AeadAlgorithm) -> SecureClient {
+    let mut scalar = [0_u8; 32];
+    scalar[31] = 7;
+    let private = Sm2PrivateKey::from_bytes_be(&scalar).expect("valid public test scalar");
+    let encrypted = pkcs8::encrypt(&private, TEST_PASSWORD, &[7_u8; 16], 1, &[8_u8; 16])
+        .expect("runtime-only encrypted fuzz key");
+    let public = spki::encode(&private.public_key());
+    let config = ClientConfig::builder()
+        .local_identity_id("fuzz-identity")
+        .api_version("fuzz-v1")
+        .local_certificate_id("fuzz-certificate")
+        .expected_remote_signing_certificate_id("fuzz-certificate")
+        .remote_encryption_certificate_id("fuzz-encryption-certificate")
+        .local_signer_id(b"fuzz-signer")
+        .expected_remote_signer_id(b"fuzz-signer")
+        .authentication_mode(AuthenticationMode::LegacyPlaintext)
+        .envelope_mode(gmcrypto_envelope_lite::EnvelopeMode::Aead(algorithm))
+        .max_plaintext_bytes(MAX_PLAINTEXT_BYTES)
+        .build()
+        .expect("fixed AEAD fuzz configuration");
+    let keys = KeyMaterial::shared(
+        PrivateKey::from_encrypted_der(&encrypted, TEST_PASSWORD)
+            .expect("runtime-only fuzz private key"),
+        PublicKey::from_der(&public).expect("runtime-only fuzz public key"),
+    );
+    SecureClient::new(
+        config,
+        keys,
+        Arc::new(HeaderProtocolAdapter::new(schema().clone())),
+    )
 }
 
 pub fn aead_valid_envelope() -> &'static SecureEnvelope {
@@ -813,10 +818,29 @@ pub fn aead_valid_envelope() -> &'static SecureEnvelope {
     })
 }
 
+pub fn ccm_valid_envelope() -> &'static SecureEnvelope {
+    static ENVELOPE: OnceLock<SecureEnvelope> = OnceLock::new();
+    ENVELOPE.get_or_init(|| {
+        ccm_client()
+            .seal(VALID_PLAINTEXT, &AuthenticationContext::legacy())
+            .expect("runtime-generated valid CCM fuzz envelope")
+    })
+}
+
 pub fn aead_encoded_values(data: &[u8]) -> (String, String, String) {
+    aead_encoded_values_for(data, aead_valid_envelope())
+}
+
+pub fn ccm_encoded_values(data: &[u8]) -> (String, String, String) {
+    aead_encoded_values_for(data, ccm_valid_envelope())
+}
+
+fn aead_encoded_values_for(
+    data: &[u8],
+    envelope: &SecureEnvelope,
+) -> (String, String, String) {
     let [signature_raw, wrapped_raw, cipher_raw] = fields(data);
     let selectors = data.get(..6).unwrap_or_default();
-    let envelope = aead_valid_envelope();
     (
         select_value(
             selectors.first(),

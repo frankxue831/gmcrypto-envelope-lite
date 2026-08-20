@@ -40,6 +40,7 @@ const ADAPTER_REJECTED: Expect = Expect::Rejected(Category::ProtocolAdapter);
 
 const FULL_VALID_OPEN: &[u8] = include_bytes!("../corpus/encoded_envelope/full_valid_open");
 const AEAD_FULL_VALID: &[u8] = include_bytes!("../corpus/aead_envelope/full_valid_open");
+const CCM_FULL_VALID: &[u8] = include_bytes!("../corpus/aead_ccm_envelope/full_valid_open");
 const RAW_MALFORMED: &[u8] = include_bytes!("../corpus/encoded_envelope/raw_malformed");
 const EMPTY_SEED: &[u8] = include_bytes!("../corpus/encoded_envelope/empty_seed");
 const TRANSPORT_SUCCESS: &[u8] = include_bytes!("../corpus/transport_parts/success");
@@ -273,6 +274,100 @@ const AEAD_CASES: &[(&str, &[u8], Expect)] = &[
     (
         "wrapped_key_limit_plus_one",
         include_bytes!("../corpus/aead_envelope/wrapped_key_limit_plus_one"),
+        BAD_ENVELOPE,
+    ),
+];
+
+const CCM_CASES: &[(&str, &[u8], Expect)] = &[
+    (
+        "cipher_limit",
+        include_bytes!("../corpus/aead_ccm_envelope/cipher_limit"),
+        BAD_ENVELOPE,
+    ),
+    (
+        "cipher_limit_minus_one",
+        include_bytes!("../corpus/aead_ccm_envelope/cipher_limit_minus_one"),
+        BAD_ENVELOPE,
+    ),
+    (
+        "cipher_limit_plus_one",
+        include_bytes!("../corpus/aead_ccm_envelope/cipher_limit_plus_one"),
+        TOO_LARGE,
+    ),
+    (
+        "cryptographic_mutation_cipher",
+        include_bytes!("../corpus/aead_ccm_envelope/cryptographic_mutation_cipher"),
+        BAD_ENVELOPE,
+    ),
+    (
+        "cryptographic_mutation_nonce",
+        include_bytes!("../corpus/aead_ccm_envelope/cryptographic_mutation_nonce"),
+        BAD_ENVELOPE,
+    ),
+    (
+        "cryptographic_mutation_signature",
+        include_bytes!("../corpus/aead_ccm_envelope/cryptographic_mutation_signature"),
+        BAD_ENVELOPE,
+    ),
+    (
+        "cryptographic_mutation_tag",
+        include_bytes!("../corpus/aead_ccm_envelope/cryptographic_mutation_tag"),
+        BAD_ENVELOPE,
+    ),
+    (
+        "cryptographic_mutation_wrapped_key",
+        include_bytes!("../corpus/aead_ccm_envelope/cryptographic_mutation_wrapped_key"),
+        BAD_ENVELOPE,
+    ),
+    (
+        "frame_floor",
+        include_bytes!("../corpus/aead_ccm_envelope/frame_floor"),
+        BAD_ENVELOPE,
+    ),
+    (
+        "frame_floor_minus_one",
+        include_bytes!("../corpus/aead_ccm_envelope/frame_floor_minus_one"),
+        BAD_ENVELOPE,
+    ),
+    ("full_valid_open", CCM_FULL_VALID, OPENS),
+    (
+        "raw_malformed",
+        include_bytes!("../corpus/aead_ccm_envelope/raw_malformed"),
+        BAD_ENVELOPE,
+    ),
+    (
+        "wrong_gcm_algorithm",
+        include_bytes!("../corpus/aead_ccm_envelope/wrong_gcm_algorithm"),
+        BAD_ENVELOPE,
+    ),
+    (
+        "signature_limit",
+        include_bytes!("../corpus/aead_ccm_envelope/signature_limit"),
+        BAD_ENVELOPE,
+    ),
+    (
+        "signature_limit_minus_one",
+        include_bytes!("../corpus/aead_ccm_envelope/signature_limit_minus_one"),
+        BAD_ENVELOPE,
+    ),
+    (
+        "signature_limit_plus_one",
+        include_bytes!("../corpus/aead_ccm_envelope/signature_limit_plus_one"),
+        BAD_ENVELOPE,
+    ),
+    (
+        "wrapped_key_limit",
+        include_bytes!("../corpus/aead_ccm_envelope/wrapped_key_limit"),
+        BAD_ENVELOPE,
+    ),
+    (
+        "wrapped_key_limit_minus_one",
+        include_bytes!("../corpus/aead_ccm_envelope/wrapped_key_limit_minus_one"),
+        BAD_ENVELOPE,
+    ),
+    (
+        "wrapped_key_limit_plus_one",
+        include_bytes!("../corpus/aead_ccm_envelope/wrapped_key_limit_plus_one"),
         BAD_ENVELOPE,
     ),
 ];
@@ -709,6 +804,10 @@ fn every_tracked_seed_has_a_contract_case() {
     );
     assert_corpus_names("aead_envelope", AEAD_CASES.iter().map(|(name, ..)| *name));
     assert_corpus_names(
+        "aead_ccm_envelope",
+        CCM_CASES.iter().map(|(name, ..)| *name),
+    );
+    assert_corpus_names(
         "encoded_envelope",
         ENCODED_CASES.iter().map(|(name, ..)| *name),
     );
@@ -833,6 +932,28 @@ fn curated_aead_seeds_open_or_reject_as_their_contract_requires() {
     };
 
     for (name, seed, expect) in AEAD_CASES {
+        assert_contract(name, *expect, open_with(seed));
+    }
+}
+
+#[test]
+fn curated_aead_ccm_seeds_open_or_reject_as_their_contract_requires() {
+    let open_with = |seed: &[u8]| {
+        let (signature, wrapped_key, cipher) = support::ccm_encoded_values(seed);
+        support::ccm_client().open_response(ResponseParts::new(
+            [
+                ("X-Fuzz-Response-Signature", signature),
+                ("X-Fuzz-Response-Wrapped-Key", wrapped_key),
+                (
+                    "X-Fuzz-Response-Remote-Signing-Certificate",
+                    "fuzz-certificate".to_owned(),
+                ),
+            ],
+            cipher,
+        ))
+    };
+
+    for (name, seed, expect) in CCM_CASES {
         assert_contract(name, *expect, open_with(seed));
     }
 }
