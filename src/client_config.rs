@@ -2,6 +2,13 @@ use crate::{AuthenticationMode, Error, Result};
 
 /// Default maximum accepted plaintext size: 16 MiB.
 pub const DEFAULT_MAX_PLAINTEXT_BYTES: usize = 16 * 1024 * 1024;
+/// Maximum plaintext SM4-CCM accepts under this crate's pinned 12-byte nonce.
+///
+/// NIST SP 800-38C encodes the payload length in `q = 15 - nonce_len` bytes.
+/// A 12-byte nonce therefore caps plaintext at `2^24 - 1` bytes, one byte
+/// below [`DEFAULT_MAX_PLAINTEXT_BYTES`].
+#[cfg(feature = "aead")]
+pub const SM4_CCM_MAX_PLAINTEXT_BYTES: usize = (1 << 24) - 1;
 const MAX_SIGNER_ID_BYTES: usize = u16::MAX as usize / 8;
 
 /// Stable, non-secret identifiers exposed to protocol adapters.
@@ -97,6 +104,13 @@ pub enum EnvelopeMode {
 pub enum AeadAlgorithm {
     /// SM4-GCM with a 12-byte random nonce and a full 16-byte tag.
     Sm4Gcm,
+    /// SM4-CCM with a 12-byte random nonce and a full 16-byte tag.
+    ///
+    /// Frame algorithm id `0x02`. Not a negotiation field: a client
+    /// accepts only the identifier its configuration pins. CCM decrypts
+    /// before verifying (the primitive wipes tentative plaintext on tag
+    /// failure). New integrations should prefer [`AeadAlgorithm::Sm4Gcm`].
+    Sm4Ccm,
 }
 
 /// Immutable client-lifetime configuration for secure-envelope operations.
@@ -310,14 +324,37 @@ impl ClientConfigBuilder {
             field: "authentication_mode",
         })?;
         authentication_mode.validate()?;
-        let max_plaintext_bytes = self
-            .max_plaintext_bytes
-            .unwrap_or(DEFAULT_MAX_PLAINTEXT_BYTES);
-        if max_plaintext_bytes == 0 {
-            return Err(Error::Configuration {
-                field: "max_plaintext_bytes",
-            });
-        }
+        #[cfg(feature = "aead")]
+        let max_plaintext_bytes = {
+            let max = self.max_plaintext_bytes.unwrap_or(
+                if matches!(envelope_mode, EnvelopeMode::Aead(AeadAlgorithm::Sm4Ccm)) {
+                    SM4_CCM_MAX_PLAINTEXT_BYTES
+                } else {
+                    DEFAULT_MAX_PLAINTEXT_BYTES
+                },
+            );
+            if max == 0
+                || (matches!(envelope_mode, EnvelopeMode::Aead(AeadAlgorithm::Sm4Ccm))
+                    && max > SM4_CCM_MAX_PLAINTEXT_BYTES)
+            {
+                return Err(Error::Configuration {
+                    field: "max_plaintext_bytes",
+                });
+            }
+            max
+        };
+        #[cfg(not(feature = "aead"))]
+        let max_plaintext_bytes = {
+            let max = self
+                .max_plaintext_bytes
+                .unwrap_or(DEFAULT_MAX_PLAINTEXT_BYTES);
+            if max == 0 {
+                return Err(Error::Configuration {
+                    field: "max_plaintext_bytes",
+                });
+            }
+            max
+        };
 
         Ok(ClientConfig {
             identity,
@@ -353,7 +390,9 @@ fn required_signer_id(value: Option<Vec<u8>>, field: &'static str) -> Result<Vec
 
 #[cfg(all(test, feature = "aead"))]
 mod tests {
-    use super::{AeadAlgorithm, ClientConfig, ClientConfigBuilder, EnvelopeMode};
+    use super::{
+        AeadAlgorithm, ClientConfig, ClientConfigBuilder, DEFAULT_MAX_PLAINTEXT_BYTES, EnvelopeMode,
+    };
     use crate::{AuthenticationMode, Error};
 
     fn base_builder() -> ClientConfigBuilder {
@@ -397,5 +436,53 @@ mod tests {
             .build()
             .expect_err("AEAD mode with a configured IV");
         assert!(matches!(with_iv, Error::Configuration { field: "iv" }));
+    }
+
+    #[test]
+    fn ccm_mode_builds_without_an_iv_and_rejects_a_configured_iv() {
+        let config = base_builder()
+            .envelope_mode(EnvelopeMode::Aead(AeadAlgorithm::Sm4Ccm))
+            .build()
+            .expect("CCM configuration");
+        assert_eq!(
+            config.envelope_mode(),
+            EnvelopeMode::Aead(AeadAlgorithm::Sm4Ccm)
+        );
+        assert_eq!(
+            config.max_plaintext_bytes(),
+            super::SM4_CCM_MAX_PLAINTEXT_BYTES
+        );
+
+        let with_iv = base_builder()
+            .envelope_mode(EnvelopeMode::Aead(AeadAlgorithm::Sm4Ccm))
+            .iv(*b"0123456789abcdef")
+            .build()
+            .expect_err("CCM mode with a configured IV");
+        assert!(matches!(with_iv, Error::Configuration { field: "iv" }));
+    }
+
+    #[test]
+    fn ccm_rejects_a_plaintext_limit_above_the_12_byte_nonce_ceiling() {
+        let over = base_builder()
+            .envelope_mode(EnvelopeMode::Aead(AeadAlgorithm::Sm4Ccm))
+            .max_plaintext_bytes(DEFAULT_MAX_PLAINTEXT_BYTES)
+            .build()
+            .expect_err("16 MiB exceeds CCM q=3 ceiling");
+        assert!(matches!(
+            over,
+            Error::Configuration {
+                field: "max_plaintext_bytes"
+            }
+        ));
+
+        let at_ceiling = base_builder()
+            .envelope_mode(EnvelopeMode::Aead(AeadAlgorithm::Sm4Ccm))
+            .max_plaintext_bytes(super::SM4_CCM_MAX_PLAINTEXT_BYTES)
+            .build()
+            .expect("ceiling is legal");
+        assert_eq!(
+            at_ceiling.max_plaintext_bytes(),
+            super::SM4_CCM_MAX_PLAINTEXT_BYTES
+        );
     }
 }
