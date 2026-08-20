@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Version identity moved to 0.4.0. The tagged 0.3.0 and 0.2.0 lines are unchanged. Public API snapshots at this identity are content-identical to 0.3.0.
+
 ## [0.3.0] - 2026-08-20
 
 ### Changed

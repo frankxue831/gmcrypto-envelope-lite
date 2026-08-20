@@ -325,7 +325,7 @@ Removing sensitive material from the current tree does not remove it from Git hi
 
 ## Release status
 
-Version 0.3.0 is the current tagged line (`v0.3.0`). Version 0.2.0 remains the tagged first crates.io candidate (`v0.2.0`). Repository checks produce an immutable `rc-built` artifact set for a named commit. Publication to crates.io has not occurred; when 0.2.0 is published it is from `git checkout v0.2.0`, not from a later `main`. When 0.3.0 is published it is from `git checkout v0.3.0`.
+Version 0.4.0 is unreleased and in development on `main`. Version 0.3.0 is the current tagged line (`v0.3.0`). Version 0.2.0 remains the tagged first crates.io candidate (`v0.2.0`). Repository checks produce an immutable `rc-built` artifact set for a named commit. Publication to crates.io has not occurred; when 0.2.0 is published it is from `git checkout v0.2.0`, not from a later `main`. When 0.3.0 is published it is from `git checkout v0.3.0`. When 0.4.0 is published it is from `git checkout v0.4.0`.
 
 `rc-built` is evidence of repository gate completion, not of the later external states. Publication requires the external gates in the [release checklist](RELEASE_CHECKLIST.md), which is deliberately excluded from the Cargo package.
 
