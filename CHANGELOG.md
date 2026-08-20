@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- Version identity moved to 0.3.0. The tagged 0.2.0 line is unchanged. Public API snapshots at this identity are content-identical to 0.2.0.
+- Version identity moved to 0.3.0. The tagged 0.2.0 line is unchanged. Both 0.3.0 public API snapshots include `HeaderSchemaBuilder::context_bound_authentication` and are not content-identical to their 0.2.0 counterparts.
 
 ### Added
 
