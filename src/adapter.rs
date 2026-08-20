@@ -441,9 +441,14 @@ impl ProtocolAdapter for HeaderProtocolAdapter {
     fn request_authentication_context(
         &self,
         _identity: &ClientIdentity,
-        _context: &ProtocolRequestContext,
+        context: &ProtocolRequestContext,
     ) -> AdapterResult<AuthenticationContext> {
-        Ok(AuthenticationContext::legacy())
+        match self.schema.authentication {
+            HeaderAuthentication::Legacy => Ok(AuthenticationContext::legacy()),
+            HeaderAuthentication::ContextBound => {
+                encode_request_context(context.operation(), context.metadata().request_id())
+            }
+        }
     }
 
     fn build_request(
@@ -597,6 +602,43 @@ fn trimmed_nonempty(value: String) -> AdapterResult<String> {
         return Err(adapter_error(AdapterErrorKind::InvalidField));
     }
     Ok(value.to_owned())
+}
+
+const HEADER_CONTEXT_VERSION: u8 = 0x01;
+const HEADER_CONTEXT_REQUEST: u8 = 0x01;
+
+fn require_exact_trim(value: &str) -> AdapterResult<&str> {
+    if value.trim().is_empty() || value != value.trim() {
+        return Err(adapter_error(AdapterErrorKind::InvalidField));
+    }
+    Ok(value)
+}
+
+fn push_length_prefixed(buffer: &mut Vec<u8>, value: &str) -> AdapterResult<()> {
+    let length =
+        u64::try_from(value.len()).map_err(|_| adapter_error(AdapterErrorKind::InvalidField))?;
+    buffer.extend_from_slice(&length.to_be_bytes());
+    buffer.extend_from_slice(value.as_bytes());
+    Ok(())
+}
+
+fn bound_context(bytes: Vec<u8>) -> AdapterResult<AuthenticationContext> {
+    AuthenticationContext::context_bound(bytes)
+        .map_err(|_| adapter_error(AdapterErrorKind::InvalidField))
+}
+
+fn encode_request_context(
+    operation: &str,
+    request_id: &str,
+) -> AdapterResult<AuthenticationContext> {
+    let operation = require_exact_trim(operation)?;
+    let request_id = require_exact_trim(request_id)?;
+    let mut bytes = Vec::new();
+    bytes.push(HEADER_CONTEXT_VERSION);
+    bytes.push(HEADER_CONTEXT_REQUEST);
+    push_length_prefixed(&mut bytes, operation)?;
+    push_length_prefixed(&mut bytes, request_id)?;
+    bound_context(bytes)
 }
 
 const fn adapter_error(kind: AdapterErrorKind) -> AdapterError {
