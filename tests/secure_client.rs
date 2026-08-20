@@ -4,13 +4,53 @@ use std::sync::{Arc, Mutex};
 
 use gmcrypto_envelope_lite::{
     AdapterError, AdapterErrorKind, AdapterResult, AuthenticationContext, AuthenticationMode,
-    ClientIdentity, Error, ParsedResponse, ProtocolAdapter, ProtocolRequestContext, RequestContext,
-    RequestMetadata, RequestParts, ResponseParts, SecureClient, SecureEnvelope,
+    CipherLocation, ClientConfig, ClientIdentity, Error, HeaderProtocolAdapter, HeaderSchema,
+    ParsedResponse, ProtocolAdapter, ProtocolRequestContext, RequestContext, RequestMetadata,
+    RequestParts, ResponseParts, SecureClient, SecureEnvelope,
 };
 
 use support::{
     client_parts_with_mode, legacy_client_parts, response_from_request, secure_client_with_seed,
 };
+
+fn bound_header_schema() -> HeaderSchema {
+    HeaderSchema::builder()
+        .static_request_header("Content-Type", "application/demo+octets")
+        .local_identity_header("X-Demo-Local-Identity")
+        .operation_header("X-Demo-Operation")
+        .request_id_header("X-Demo-Request-Id")
+        .request_time_header("X-Demo-Request-Time")
+        .api_version_header("X-Demo-Api-Version")
+        .local_certificate_header("X-Demo-Local-Certificate")
+        .remote_signing_certificate_header("X-Demo-Remote-Signing-Certificate")
+        .remote_encryption_certificate_header("X-Demo-Remote-Encryption-Certificate")
+        .request_signature_header("X-Demo-Request-Signature")
+        .request_wrapped_key_header("X-Demo-Request-Wrapped-Key")
+        .request_cipher(CipherLocation::Body)
+        .response_signature_header("X-Demo-Response-Signature")
+        .response_wrapped_key_header("X-Demo-Response-Wrapped-Key")
+        .response_remote_signing_certificate_header("X-Demo-Response-Remote-Signing-Certificate")
+        .response_cipher(CipherLocation::Body)
+        .context_bound_authentication()
+        .build()
+        .expect("bound schema")
+}
+
+fn config_with_mode(base: &ClientConfig, mode: AuthenticationMode) -> ClientConfig {
+    let identity = base.identity();
+    ClientConfig::builder()
+        .local_identity_id(identity.local_identity_id())
+        .api_version(identity.api_version())
+        .local_certificate_id(identity.local_certificate_id())
+        .expected_remote_signing_certificate_id(identity.expected_remote_signing_certificate_id())
+        .remote_encryption_certificate_id(identity.remote_encryption_certificate_id())
+        .local_signer_id(base.local_signer_id())
+        .expected_remote_signer_id(base.expected_remote_signer_id())
+        .authentication_mode(mode)
+        .iv(*base.iv())
+        .build()
+        .expect("config with swapped mode")
+}
 
 fn request_context(operation: &str) -> RequestContext {
     RequestContext::builder(operation)
@@ -427,6 +467,83 @@ fn direct_seal_and_open_enforce_explicit_keys_modes_and_contexts() {
     let other = secure_client_with_seed(11);
     assert!(matches!(
         other.open(&envelope, &AuthenticationContext::legacy()),
+        Err(Error::InvalidEnvelope)
+    ));
+}
+
+#[test]
+fn header_adapter_mode_mismatch_is_authentication_context_outbound_and_invalid_envelope_inbound() {
+    let (legacy_config, keys, _legacy_schema) = legacy_client_parts();
+    let certificate = legacy_config
+        .identity()
+        .expected_remote_signing_certificate_id()
+        .to_owned();
+
+    let legacy_mode_bound_schema = SecureClient::new(
+        legacy_config,
+        keys,
+        Arc::new(HeaderProtocolAdapter::new(bound_header_schema())),
+    );
+    assert!(matches!(
+        legacy_mode_bound_schema.build_request(b"payload", request_context("pay")),
+        Err(Error::AuthenticationContext)
+    ));
+    let sealed = legacy_mode_bound_schema
+        .seal(b"payload", &AuthenticationContext::legacy())
+        .expect("legacy seal");
+    assert!(matches!(
+        legacy_mode_bound_schema.open_response(ResponseParts::new(
+            [
+                ("X-Demo-Response-Signature", sealed.signature.clone(),),
+                (
+                    "X-Demo-Response-Wrapped-Key",
+                    sealed.wrapped_session_key.clone(),
+                ),
+                (
+                    "X-Demo-Response-Remote-Signing-Certificate",
+                    certificate.clone(),
+                ),
+                ("X-Demo-Request-Id", "request-pay".to_owned()),
+            ],
+            sealed.cipher.clone(),
+        )),
+        Err(Error::InvalidEnvelope)
+    ));
+
+    let (legacy_config, keys, legacy_schema) = legacy_client_parts();
+    let certificate = legacy_config
+        .identity()
+        .expected_remote_signing_certificate_id()
+        .to_owned();
+    let bound_mode = AuthenticationMode::context_bound(b"mismatch-domain").expect("domain");
+    let bound_mode_legacy_schema = SecureClient::new(
+        config_with_mode(&legacy_config, bound_mode),
+        keys,
+        Arc::new(HeaderProtocolAdapter::new(legacy_schema)),
+    );
+    assert!(matches!(
+        bound_mode_legacy_schema.build_request(b"payload", request_context("pay")),
+        Err(Error::AuthenticationContext)
+    ));
+    let bound = AuthenticationContext::context_bound(b"explicit-bound").expect("context");
+    let bound_envelope = bound_mode_legacy_schema
+        .seal(b"payload", &bound)
+        .expect("bound seal");
+    assert!(matches!(
+        bound_mode_legacy_schema.open_response(ResponseParts::new(
+            [
+                (
+                    "X-Demo-Response-Signature",
+                    bound_envelope.signature.clone(),
+                ),
+                (
+                    "X-Demo-Response-Wrapped-Key",
+                    bound_envelope.wrapped_session_key.clone(),
+                ),
+                ("X-Demo-Response-Remote-Signing-Certificate", certificate,),
+            ],
+            bound_envelope.cipher.clone(),
+        )),
         Err(Error::InvalidEnvelope)
     ));
 }
