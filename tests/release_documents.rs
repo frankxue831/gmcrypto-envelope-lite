@@ -420,7 +420,7 @@ fn security_model_is_versioned_and_states_claims_and_non_claims() {
     assert_markers(
         &model,
         &[
-            "**Model version:** 2",
+            "**Model version:** 3",
             "## Protected assets and attacker-controlled inputs",
             "## Trust boundaries",
             "## Security claims",
@@ -493,7 +493,7 @@ fn engineering_evidence_is_versioned_and_disclaims_audit_status() {
     assert_markers(
         &evidence,
         &[
-            "**Evidence version:** 2",
+            "**Evidence version:** 3",
             "not an independent audit, certification, warranty, or proof",
             "tests/standard_vectors.rs",
             "directional_roles_drive_two_party_cryptography",
