@@ -419,6 +419,9 @@ impl HeaderSchema {
         if let CipherLocation::Header(name) = &self.response_cipher {
             insert_mapping(&mut response_names, name)?;
         }
+        if self.authentication == HeaderAuthentication::ContextBound {
+            insert_mapping(&mut response_names, &self.request_id_header)?;
+        }
         Ok(())
     }
 }
