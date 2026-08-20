@@ -8,6 +8,8 @@ use crate::{
     AdapterError, AdapterErrorKind, AdapterResult, AuthenticationContext, ClientIdentity,
     HeaderName, HeaderValue,
 };
+#[cfg(doc)]
+use crate::{AuthenticationMode, ClientConfig};
 
 /// Converts between protocol-neutral secure envelopes and a wire representation.
 pub trait ProtocolAdapter: Send + Sync {
@@ -41,6 +43,12 @@ pub enum CipherLocation {
     Header(HeaderName),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum HeaderAuthentication {
+    Legacy,
+    ContextBound,
+}
+
 /// A complete, validated header mapping for [`HeaderProtocolAdapter`].
 #[derive(Clone, Debug)]
 pub struct HeaderSchema {
@@ -60,6 +68,7 @@ pub struct HeaderSchema {
     response_wrapped_key_header: HeaderName,
     response_remote_signing_certificate_header: HeaderName,
     response_cipher: CipherLocation,
+    authentication: HeaderAuthentication,
 }
 
 impl HeaderSchema {
@@ -90,6 +99,7 @@ pub struct HeaderSchemaBuilder {
     response_remote_signing_certificate_header: Option<String>,
     response_cipher: Option<CipherLocation>,
     legacy_authentication: bool,
+    context_bound_authentication: bool,
 }
 
 impl fmt::Debug for HeaderSchemaBuilder {
@@ -146,6 +156,10 @@ impl fmt::Debug for HeaderSchemaBuilder {
             )
             .field("response_cipher", &self.response_cipher)
             .field("legacy_authentication", &self.legacy_authentication)
+            .field(
+                "context_bound_authentication",
+                &self.context_bound_authentication,
+            )
             .finish()
     }
 }
@@ -270,26 +284,56 @@ impl HeaderSchemaBuilder {
 
     /// Selects legacy plaintext authentication explicitly.
     ///
+    /// This schema signs plaintext only. Use authenticated TLS, replay defense,
+    /// and request/response correlation.
+    ///
     /// # Security
     ///
-    /// This adapter signs plaintext only and cannot produce context-bound authentication.
-    /// Use authenticated TLS, replay defense, and request/response correlation. A custom
-    /// [`ProtocolAdapter`] is required when the wire supports context-bound signatures.
+    /// Both peers must reconstruct the same typed fields. There is no
+    /// negotiation or fallback.
     #[must_use]
     pub fn legacy_authentication(mut self) -> Self {
         self.legacy_authentication = true;
         self
     }
 
+    /// Selects context-bound authentication for this header mapping.
+    ///
+    /// Request and response context bytes use the crate-owned version-1
+    /// layout documented on [`HeaderProtocolAdapter`]. This is not AEAD,
+    /// replay protection, or request/response correlation.
+    /// [`ClientConfig`] must pin [`AuthenticationMode::ContextBound`]
+    /// separately.
+    ///
+    /// # Security
+    ///
+    /// Both peers must reconstruct the same typed fields. There is no
+    /// negotiation or fallback.
+    #[must_use]
+    pub fn context_bound_authentication(mut self) -> Self {
+        self.context_bound_authentication = true;
+        self
+    }
+
     /// Validates every mapping and creates an immutable schema.
     pub fn build(self) -> AdapterResult<HeaderSchema> {
         if self.static_request_headers.is_empty()
-            || !self.legacy_authentication
             || self.request_cipher.is_none()
             || self.response_cipher.is_none()
         {
             return Err(adapter_error(AdapterErrorKind::MissingField));
         }
+        if self.legacy_authentication && self.context_bound_authentication {
+            return Err(adapter_error(AdapterErrorKind::InvalidMapping));
+        }
+        if !self.legacy_authentication && !self.context_bound_authentication {
+            return Err(adapter_error(AdapterErrorKind::MissingField));
+        }
+        let authentication = if self.context_bound_authentication {
+            HeaderAuthentication::ContextBound
+        } else {
+            HeaderAuthentication::Legacy
+        };
 
         let static_request_headers = self
             .static_request_headers
@@ -333,6 +377,7 @@ impl HeaderSchemaBuilder {
             response_cipher: self
                 .response_cipher
                 .ok_or_else(|| adapter_error(AdapterErrorKind::MissingField))?,
+            authentication,
         };
         schema.validate_collisions()?;
         Ok(schema)

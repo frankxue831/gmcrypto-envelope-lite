@@ -39,6 +39,27 @@ fn protocol_adapter_is_object_safe_and_arc_compatible() {
     assert_eq!(authentication, AuthenticationContext::legacy());
 }
 
+fn context_bound_schema_builder() -> HeaderSchemaBuilder {
+    schema_builder_omitting(Some(RequiredMapping::LegacyAuthentication))
+        .context_bound_authentication()
+}
+
+#[test]
+fn schema_rejects_both_authentication_acknowledgements() {
+    let error = complete_schema_builder()
+        .context_bound_authentication()
+        .build()
+        .expect_err("exactly one acknowledgement");
+    assert_eq!(error.kind(), AdapterErrorKind::InvalidMapping);
+}
+
+#[test]
+fn schema_accepts_exclusive_context_bound_authentication() {
+    context_bound_schema_builder()
+        .build()
+        .expect("context-bound acknowledgement is sufficient");
+}
+
 #[test]
 fn schema_requires_every_mapping_and_explicit_legacy_authentication() {
     let required = [
