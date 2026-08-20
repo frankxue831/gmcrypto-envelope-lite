@@ -289,7 +289,9 @@ impl HeaderSchemaBuilder {
     ///
     /// # Security
     ///
-    /// Both peers must reconstruct the same typed fields. There is no
+    /// Both peers must select the same authentication mode. Legacy mode signs
+    /// plaintext only; request metadata is not authenticated. Use authenticated
+    /// TLS, replay defense, and request/response correlation. There is no
     /// negotiation or fallback.
     #[must_use]
     pub fn legacy_authentication(mut self) -> Self {
@@ -427,6 +429,19 @@ impl HeaderSchema {
 }
 
 /// A schema-driven adapter for protocols represented by headers and a body.
+///
+/// # Context-bound authentication layout
+///
+/// When the schema selects context-bound authentication via
+/// [`HeaderSchemaBuilder::context_bound_authentication`], request and response
+/// context bytes use the crate-owned version-1 encoding (UTF-8 fields,
+/// big-endian `u64` length prefixes):
+///
+/// - **Request:** `0x01 || 0x01 || u64be(operation_len) || operation || u64be(request_id_len) || request_id`
+/// - **Response:** `0x01 || 0x02 || u64be(request_id_len) || request_id` from the echoed request-id header
+///
+/// Surrounding whitespace is rejected (`value == value.trim()` using Unicode
+/// `str::trim()`), not canonicalized.
 #[derive(Clone, Debug)]
 pub struct HeaderProtocolAdapter {
     schema: HeaderSchema,
