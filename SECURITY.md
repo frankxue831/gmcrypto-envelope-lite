@@ -14,7 +14,7 @@ You should receive an acknowledgement within 7 days. Please allow a reasonable e
 
 | Version | Supported |
 | ------- | --------- |
-| 0.3.x | Unreleased (`main`) |
+| 0.3.x | Yes |
 | 0.2.x | Yes |
 
 Fixes land on `main` and ship in the next 0.3.x release. There is no 0.1.x support line.
