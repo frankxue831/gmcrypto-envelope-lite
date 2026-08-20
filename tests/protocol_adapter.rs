@@ -44,6 +44,88 @@ fn context_bound_schema_builder() -> HeaderSchemaBuilder {
         .context_bound_authentication()
 }
 
+const DEMO_REQUEST_CONTEXT: &[u8] = &[
+    0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e, b'd', b'e', b'm', b'o', b'-', b'o',
+    b'p', b'e', b'r', b'a', b't', b'i', b'o', b'n', 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e,
+    b'd', b'e', b'm', b'o', b'-', b'r', b'e', b'q', b'u', b'e', b's', b't', b'-', b'1',
+];
+
+fn context_bound_adapter() -> HeaderProtocolAdapter {
+    HeaderProtocolAdapter::new(
+        context_bound_schema_builder()
+            .build()
+            .expect("context-bound schema"),
+    )
+}
+
+#[test]
+fn context_bound_request_context_matches_versioned_kat() {
+    let context = context_bound_adapter()
+        .request_authentication_context(&identity(), &request_context())
+        .expect("bound request context");
+    assert_eq!(
+        context,
+        AuthenticationContext::context_bound(DEMO_REQUEST_CONTEXT).expect("kat")
+    );
+}
+
+#[test]
+fn context_bound_request_encoding_separates_delimiter_tuples() {
+    let adapter = context_bound_adapter();
+    let time = "2026-07-12T10:11:12Z";
+    let left = ProtocolRequestContext::new(
+        "pay",
+        RequestMetadata::new("1&request-id=2", time).expect("left id"),
+    )
+    .expect("left");
+    let right = ProtocolRequestContext::new(
+        "pay&request-id=1",
+        RequestMetadata::new("2", time).expect("right id"),
+    )
+    .expect("right");
+    let left_ctx = adapter
+        .request_authentication_context(&identity(), &left)
+        .expect("left context");
+    let right_ctx = adapter
+        .request_authentication_context(&identity(), &right)
+        .expect("right context");
+    assert_ne!(left_ctx, right_ctx);
+}
+
+#[test]
+fn context_bound_request_rejects_surrounding_whitespace() {
+    let adapter = context_bound_adapter();
+    let time = "2026-07-12T10:11:12Z";
+    let padded_operation = ProtocolRequestContext::new(
+        " pay",
+        RequestMetadata::new("demo-request-1", time).expect("id"),
+    )
+    .expect("padded operation is stored");
+    let error = adapter
+        .request_authentication_context(&identity(), &padded_operation)
+        .expect_err("surrounding whitespace");
+    assert_eq!(error.kind(), AdapterErrorKind::InvalidField);
+}
+
+#[test]
+fn context_bound_request_preserves_interior_whitespace() {
+    let adapter = context_bound_adapter();
+    let time = "2026-07-12T10:11:12Z";
+    let spaced =
+        ProtocolRequestContext::new("pay now", RequestMetadata::new("id-1", time).expect("id"))
+            .expect("interior space");
+    let compact =
+        ProtocolRequestContext::new("paynow", RequestMetadata::new("id-1", time).expect("id"))
+            .expect("compact");
+    let spaced_ctx = adapter
+        .request_authentication_context(&identity(), &spaced)
+        .expect("spaced");
+    let compact_ctx = adapter
+        .request_authentication_context(&identity(), &compact)
+        .expect("compact");
+    assert_ne!(spaced_ctx, compact_ctx);
+}
+
 #[test]
 fn schema_rejects_both_authentication_acknowledgements() {
     let error = complete_schema_builder()
