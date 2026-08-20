@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Version identity moved to 0.3.0. The tagged 0.2.0 line is unchanged. Public API snapshots at this identity are content-identical to 0.2.0.
 
+### Added
+
+- `HeaderSchemaBuilder::context_bound_authentication()` as an exclusive alternative to `.legacy_authentication()`. `HeaderProtocolAdapter` then signs crate-owned version-1 context bytes: request `0x01 || 0x01 || u64be(operation_len) || operation || u64be(request_id_len) || request_id`, response `0x01 || 0x02 || u64be(request_id_len) || request_id` from the echoed request-id header. Surrounding whitespace is rejected. Distinct `(operation, request_id)` pairs that collided under ASCII concatenation encode differently. `ProtocolAdapter` is unchanged.
+
 ## [0.2.0] - 2026-08-19
 
 ### Security

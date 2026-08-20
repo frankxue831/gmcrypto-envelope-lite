@@ -206,6 +206,7 @@ pub struct gmcrypto_envelope_lite::HeaderSchemaBuilder
 impl gmcrypto_envelope_lite::HeaderSchemaBuilder
 pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::api_version_header(self, impl core::convert::Into<alloc::string::String>) -> Self
 pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::build(self) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::HeaderSchema>
+pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::context_bound_authentication(self) -> Self
 pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::legacy_authentication(self) -> Self
 pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::local_certificate_header(self, impl core::convert::Into<alloc::string::String>) -> Self
 pub fn gmcrypto_envelope_lite::HeaderSchemaBuilder::local_identity_header(self, impl core::convert::Into<alloc::string::String>) -> Self

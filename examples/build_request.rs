@@ -75,12 +75,10 @@ fn example_client(keys: KeyMaterial) -> gmcrypto_envelope_lite::Result<SecureCli
     ))
 }
 
-/// Wire mapping for the example's context-bound protocol.
-///
-/// `HeaderProtocolAdapter` deliberately supports only legacy plaintext
-/// authentication, so a context-bound wire implements [`ProtocolAdapter`]
-/// directly. The adapter selects what each signature covers and how envelope
-/// fields travel; it never sees plaintext or key material.
+/// This example implements [`ProtocolAdapter`] so callers can see custom
+/// context derivation. `HeaderProtocolAdapter` can emit ContextBound
+/// authentication with the crate-owned version-1 binary layout when the
+/// schema calls `.context_bound_authentication()`.
 struct ExampleContextAdapter;
 
 impl ProtocolAdapter for ExampleContextAdapter {
