@@ -50,6 +50,17 @@ const DEMO_REQUEST_CONTEXT: &[u8] = &[
     b'd', b'e', b'm', b'o', b'-', b'r', b'e', b'q', b'u', b'e', b's', b't', b'-', b'1',
 ];
 
+const DEMO_RESPONSE_CONTEXT: &[u8] = &[
+    0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e, b'd', b'e', b'm', b'o', b'-', b'r',
+    b'e', b'q', b'u', b'e', b's', b't', b'-', b'1',
+];
+
+fn context_bound_response_headers() -> Vec<(&'static str, &'static str)> {
+    let mut headers = response_headers().to_vec();
+    headers.push(("X-Demo-Request-Id", "demo-request-1"));
+    headers
+}
+
 fn context_bound_adapter() -> HeaderProtocolAdapter {
     HeaderProtocolAdapter::new(
         context_bound_schema_builder()
@@ -105,6 +116,73 @@ fn context_bound_request_rejects_surrounding_whitespace() {
         .request_authentication_context(&identity(), &padded_operation)
         .expect_err("surrounding whitespace");
     assert_eq!(error.kind(), AdapterErrorKind::InvalidField);
+}
+
+#[test]
+fn context_bound_parse_response_matches_versioned_kat() {
+    let parsed = context_bound_adapter()
+        .parse_response(ResponseParts::new(
+            context_bound_response_headers(),
+            "demo-response-cipher",
+        ))
+        .expect("bound response");
+    assert_eq!(
+        parsed.authentication_context(),
+        &AuthenticationContext::context_bound(DEMO_RESPONSE_CONTEXT).expect("kat")
+    );
+}
+
+#[test]
+fn context_bound_parse_response_matches_request_id_header_case_insensitively() {
+    let mut headers = response_headers().to_vec();
+    headers.push(("x-demo-request-id", "demo-request-1"));
+    let parsed = context_bound_adapter()
+        .parse_response(ResponseParts::new(headers, "demo-response-cipher"))
+        .expect("case-insensitive echo");
+    assert_eq!(
+        parsed.authentication_context(),
+        &AuthenticationContext::context_bound(DEMO_RESPONSE_CONTEXT).expect("kat")
+    );
+}
+
+#[test]
+fn context_bound_parse_response_requires_untrimmed_request_id() {
+    let adapter = context_bound_adapter();
+    let missing = adapter
+        .parse_response(ResponseParts::new(
+            response_headers(),
+            "demo-response-cipher",
+        ))
+        .expect_err("missing request id");
+    assert_eq!(missing.kind(), AdapterErrorKind::MissingField);
+
+    let mut padded = response_headers().to_vec();
+    padded.push(("X-Demo-Request-Id", " demo-request-1"));
+    let whitespace = adapter
+        .parse_response(ResponseParts::new(padded, "demo-response-cipher"))
+        .expect_err("surrounding whitespace");
+    assert_eq!(whitespace.kind(), AdapterErrorKind::InvalidField);
+
+    let mut duplicated = context_bound_response_headers();
+    duplicated.push(("x-demo-request-id", "other"));
+    let duplicate = adapter
+        .parse_response(ResponseParts::new(duplicated, "demo-response-cipher"))
+        .expect_err("duplicate");
+    assert_eq!(duplicate.kind(), AdapterErrorKind::DuplicateField);
+}
+
+#[test]
+fn legacy_parse_response_still_ignores_request_id_and_returns_legacy_context() {
+    let parsed = HeaderProtocolAdapter::new(schema())
+        .parse_response(ResponseParts::new(
+            response_headers(),
+            "demo-response-cipher",
+        ))
+        .expect("legacy response");
+    assert_eq!(
+        parsed.authentication_context(),
+        &AuthenticationContext::legacy()
+    );
 }
 
 #[test]

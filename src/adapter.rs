@@ -518,6 +518,7 @@ impl ProtocolAdapter for HeaderProtocolAdapter {
         let mut wrapped_session_key = None;
         let mut remote_signing_certificate_id = None;
         let mut cipher = None;
+        let mut request_id = None;
 
         for (name, value) in headers {
             let target = if name
@@ -532,6 +533,12 @@ impl ProtocolAdapter for HeaderProtocolAdapter {
                     .as_str(),
             ) {
                 Some(&mut remote_signing_certificate_id)
+            } else if matches!(
+                self.schema.authentication,
+                HeaderAuthentication::ContextBound
+            ) && name.eq_ignore_ascii_case(self.schema.request_id_header.as_str())
+            {
+                Some(&mut request_id)
             } else if let CipherLocation::Header(cipher_header) = &self.schema.response_cipher {
                 name.eq_ignore_ascii_case(cipher_header.as_str())
                     .then_some(&mut cipher)
@@ -555,6 +562,17 @@ impl ProtocolAdapter for HeaderProtocolAdapter {
             CipherLocation::Header(_) => required_response_header(cipher)?,
         };
 
+        let authentication_context = match self.schema.authentication {
+            HeaderAuthentication::Legacy => AuthenticationContext::legacy(),
+            HeaderAuthentication::ContextBound => {
+                let value =
+                    request_id.ok_or_else(|| adapter_error(AdapterErrorKind::MissingField))?;
+                HeaderValue::new(&value)
+                    .map_err(|_| adapter_error(AdapterErrorKind::InvalidField))?;
+                encode_response_context(&value)?
+            }
+        };
+
         ParsedResponse::new(
             SecureEnvelope {
                 cipher,
@@ -562,7 +580,7 @@ impl ProtocolAdapter for HeaderProtocolAdapter {
                 signature,
             },
             remote_signing_certificate_id,
-            AuthenticationContext::legacy(),
+            authentication_context,
         )
     }
 }
@@ -606,6 +624,7 @@ fn trimmed_nonempty(value: String) -> AdapterResult<String> {
 
 const HEADER_CONTEXT_VERSION: u8 = 0x01;
 const HEADER_CONTEXT_REQUEST: u8 = 0x01;
+const HEADER_CONTEXT_RESPONSE: u8 = 0x02;
 
 fn require_exact_trim(value: &str) -> AdapterResult<&str> {
     if value.trim().is_empty() || value != value.trim() {
@@ -637,6 +656,15 @@ fn encode_request_context(
     bytes.push(HEADER_CONTEXT_VERSION);
     bytes.push(HEADER_CONTEXT_REQUEST);
     push_length_prefixed(&mut bytes, operation)?;
+    push_length_prefixed(&mut bytes, request_id)?;
+    bound_context(bytes)
+}
+
+fn encode_response_context(request_id: &str) -> AdapterResult<AuthenticationContext> {
+    let request_id = require_exact_trim(request_id)?;
+    let mut bytes = Vec::new();
+    bytes.push(HEADER_CONTEXT_VERSION);
+    bytes.push(HEADER_CONTEXT_RESPONSE);
     push_length_prefixed(&mut bytes, request_id)?;
     bound_context(bytes)
 }
