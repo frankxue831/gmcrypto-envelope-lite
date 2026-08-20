@@ -509,7 +509,7 @@ mod tests {
     }
 
     #[test]
-    fn aead_frame_version_algorithm_and_reserved_ccm_ids_are_rejected() {
+    fn aead_gcm_rejects_wrong_version_and_non_gcm_algorithm_ids() {
         let peers = aead_peers(AuthenticationMode::LegacyPlaintext, 128);
         let valid = valid_envelope(&peers);
 
@@ -1147,5 +1147,322 @@ mod tests {
             gmcrypto_core::sm4::mode_ccm::encrypt(&key, &nonce, &[], &over, 16).is_none(),
             "q=3 must reject 16 MiB plaintext before encrypting"
         );
+    }
+
+    fn valid_ccm_envelope(peers: &crate::envelope_crypto::test_support::Peers) -> SecureEnvelope {
+        seal(
+            &peers.sender_config,
+            &peers.sender_keys,
+            b"ccm negative-matrix payload",
+            &legacy_context(),
+        )
+        .expect("seal valid CCM envelope")
+    }
+
+    #[test]
+    fn ccm_rejects_wrong_version_and_non_ccm_algorithm_ids() {
+        let peers = ccm_peers(AuthenticationMode::LegacyPlaintext, 128);
+        let valid = valid_ccm_envelope(&peers);
+
+        for mutated in [
+            with_mutated_frame(&valid, |frame| frame[0] ^= 0x01),
+            with_mutated_frame(&valid, |frame| frame[0] = 0x02),
+            with_mutated_frame(&valid, |frame| frame[1] = 0x01),
+            with_mutated_frame(&valid, |frame| frame[1] = 0x7f),
+        ] {
+            assert_invalid_envelope(open(
+                &peers.receiver_config,
+                &peers.receiver_keys,
+                &mutated,
+                &legacy_context(),
+            ));
+        }
+    }
+
+    #[test]
+    fn ccm_short_and_truncated_frames_are_rejected() {
+        let peers = ccm_peers(AuthenticationMode::LegacyPlaintext, 128);
+        let valid = valid_ccm_envelope(&peers);
+
+        let mut floor_minus_one = vec![0_u8; 29];
+        floor_minus_one[0] = 0x01;
+        floor_minus_one[1] = 0x02;
+        for mutated in [
+            SecureEnvelope {
+                cipher: STANDARD.encode(floor_minus_one),
+                ..valid.clone()
+            },
+            SecureEnvelope {
+                cipher: String::new(),
+                ..valid.clone()
+            },
+            with_mutated_frame(&valid, |frame| {
+                frame.pop();
+            }),
+            with_mutated_frame(&valid, |frame| frame.truncate(FRAME_HEADER_BYTES)),
+        ] {
+            assert_invalid_envelope(open(
+                &peers.receiver_config,
+                &peers.receiver_keys,
+                &mutated,
+                &legacy_context(),
+            ));
+        }
+    }
+
+    #[test]
+    fn ccm_nonce_ciphertext_and_tag_tampering_are_indistinguishable() {
+        let peers = ccm_peers(AuthenticationMode::LegacyPlaintext, 128);
+        let valid = valid_ccm_envelope(&peers);
+
+        for mutated in [
+            with_mutated_frame(&valid, |frame| frame[2] ^= 0x01),
+            with_mutated_frame(&valid, |frame| frame[FRAME_HEADER_BYTES] ^= 0x01),
+            with_mutated_frame(&valid, |frame| {
+                let ciphertext_len = frame.len() - FRAME_OVERHEAD_BYTES;
+                let middle = FRAME_HEADER_BYTES + ciphertext_len / 2;
+                frame[middle] ^= 0x01;
+            }),
+            with_mutated_frame(&valid, |frame| {
+                let tag_start = frame.len() - TAG_BYTES;
+                let last_ciphertext = tag_start - 1;
+                frame[last_ciphertext] ^= 0x01;
+            }),
+            with_mutated_frame(&valid, |frame| {
+                let last = frame.len() - 1;
+                frame[last] ^= 0x01;
+            }),
+            with_mutated_frame(&valid, |frame| {
+                let tag_start = frame.len() - 16;
+                frame[tag_start..].fill(0);
+            }),
+        ] {
+            assert_invalid_envelope(open(
+                &peers.receiver_config,
+                &peers.receiver_keys,
+                &mutated,
+                &legacy_context(),
+            ));
+        }
+    }
+
+    #[test]
+    fn ccm_domain_separator_and_context_are_covered_by_the_aad() {
+        let sender_mode =
+            AuthenticationMode::context_bound(b"example/request/v1").expect("sender domain");
+        let receiver_mode =
+            AuthenticationMode::context_bound(b"example/response/v1").expect("receiver domain");
+        let peers = ccm_peers(sender_mode, 256);
+        let mismatched_receiver_config = crate::envelope_crypto::test_support::aead_config(
+            "receiver",
+            crate::envelope_crypto::test_support::RECEIVER_SIGNER_ID,
+            crate::envelope_crypto::test_support::SENDER_SIGNER_ID,
+            receiver_mode,
+            256,
+            crate::AeadAlgorithm::Sm4Ccm,
+        );
+        let context =
+            AuthenticationContext::context_bound(b"operation=pay&id=17").expect("bound context");
+        let envelope = seal(
+            &peers.sender_config,
+            &peers.sender_keys,
+            b"domain-separated ccm payload",
+            &context,
+        )
+        .expect("seal with sender domain");
+
+        assert_invalid_envelope(open(
+            &mismatched_receiver_config,
+            &peers.receiver_keys,
+            &envelope,
+            &context,
+        ));
+    }
+
+    #[test]
+    fn ccm_oversized_encoded_and_decoded_ciphers_split_the_public_bounds() {
+        let peers = ccm_peers(AuthenticationMode::LegacyPlaintext, 17);
+        let encoded_too_large = SecureEnvelope {
+            cipher: "!".repeat(65),
+            wrapped_session_key: "not Base64".to_owned(),
+            signature: "not Base64".to_owned(),
+        };
+        let encoded_error = open(
+            &peers.receiver_config,
+            &peers.receiver_keys,
+            &encoded_too_large,
+            &legacy_context(),
+        )
+        .expect_err("encoded cipher is over its public bound");
+        assert!(matches!(
+            encoded_error,
+            Error::MessageTooLarge { limit: 17 }
+        ));
+
+        let sealing_peers = ccm_peers(AuthenticationMode::LegacyPlaintext, 18);
+        let valid = seal(
+            &sealing_peers.sender_config,
+            &sealing_peers.sender_keys,
+            &[b'z'; 18],
+            &legacy_context(),
+        )
+        .expect("seal valid 18-byte payload");
+        let decoded_frame = STANDARD.decode(&valid.cipher).expect("cipher Base64");
+        assert_eq!(decoded_frame.len(), 48);
+        assert_eq!(valid.cipher.len(), 64);
+        let decoded_too_large = SecureEnvelope {
+            cipher: STANDARD.encode(decoded_frame),
+            ..valid
+        };
+        assert_invalid_envelope(open(
+            &peers.receiver_config,
+            &peers.receiver_keys,
+            &decoded_too_large,
+            &legacy_context(),
+        ));
+    }
+
+    #[test]
+    fn ccm_wrapped_key_signature_and_wrong_key_failures_match_cbc_semantics() {
+        let peers = ccm_peers(AuthenticationMode::LegacyPlaintext, 128);
+        let valid = valid_ccm_envelope(&peers);
+
+        let malformed_wrapped = SecureEnvelope {
+            wrapped_session_key: STANDARD.encode(b"not SM2 DER"),
+            ..valid.clone()
+        };
+        let wrong_length_wrapped = SecureEnvelope {
+            wrapped_session_key: wrapped_plaintext_for_receiver(b"not-16-bytes"),
+            ..valid.clone()
+        };
+        let mut tampered_signature_bytes =
+            STANDARD.decode(&valid.signature).expect("signature Base64");
+        let final_byte = tampered_signature_bytes.len() - 1;
+        tampered_signature_bytes[final_byte] ^= 1;
+        let tampered_signature = SecureEnvelope {
+            signature: STANDARD.encode(tampered_signature_bytes),
+            ..valid.clone()
+        };
+        let non_canonical = SecureEnvelope {
+            cipher: "AA".to_owned(),
+            ..valid.clone()
+        };
+        let invalid_base64_wrapped = SecureEnvelope {
+            wrapped_session_key: "!!!!".to_owned(),
+            ..valid.clone()
+        };
+        let invalid_base64_signature = SecureEnvelope {
+            signature: "!!!!".to_owned(),
+            ..valid.clone()
+        };
+        for mutated in [
+            malformed_wrapped,
+            wrong_length_wrapped,
+            tampered_signature,
+            non_canonical,
+            invalid_base64_wrapped,
+            invalid_base64_signature,
+        ] {
+            assert_invalid_envelope(open(
+                &peers.receiver_config,
+                &peers.receiver_keys,
+                &mutated,
+                &legacy_context(),
+            ));
+        }
+
+        let wrong_decryption = key_material(
+            RECEIVER_SIGNING,
+            UNRELATED_KEY,
+            SENDER_SIGNING,
+            SENDER_DECRYPTION,
+        );
+        assert_invalid_envelope(open(
+            &peers.receiver_config,
+            &wrong_decryption,
+            &valid,
+            &legacy_context(),
+        ));
+        let wrong_verification = key_material(
+            RECEIVER_SIGNING,
+            RECEIVER_DECRYPTION,
+            UNRELATED_KEY,
+            SENDER_DECRYPTION,
+        );
+        assert_invalid_envelope(open(
+            &peers.receiver_config,
+            &wrong_verification,
+            &valid,
+            &legacy_context(),
+        ));
+    }
+
+    #[test]
+    fn ccm_and_gcm_clients_reject_each_other_s_envelopes() {
+        let gcm = aead_peers(AuthenticationMode::LegacyPlaintext, 128);
+        let ccm = ccm_peers(AuthenticationMode::LegacyPlaintext, 128);
+
+        let gcm_envelope = seal(
+            &gcm.sender_config,
+            &gcm.sender_keys,
+            b"gcm payload",
+            &legacy_context(),
+        )
+        .expect("GCM seal");
+        assert_invalid_envelope(open(
+            &ccm.receiver_config,
+            &ccm.receiver_keys,
+            &gcm_envelope,
+            &legacy_context(),
+        ));
+
+        let ccm_envelope = seal(
+            &ccm.sender_config,
+            &ccm.sender_keys,
+            b"ccm payload",
+            &legacy_context(),
+        )
+        .expect("CCM seal");
+        assert_invalid_envelope(open(
+            &gcm.receiver_config,
+            &gcm.receiver_keys,
+            &ccm_envelope,
+            &legacy_context(),
+        ));
+    }
+
+    #[test]
+    fn ccm_and_cbc_clients_reject_each_other_s_envelopes() {
+        let cbc =
+            crate::envelope_crypto::test_support::peers(AuthenticationMode::LegacyPlaintext, 128);
+        let ccm = ccm_peers(AuthenticationMode::LegacyPlaintext, 128);
+
+        let cbc_envelope = seal(
+            &cbc.sender_config,
+            &cbc.sender_keys,
+            b"cbc payload",
+            &legacy_context(),
+        )
+        .expect("CBC seal");
+        assert_invalid_envelope(open(
+            &ccm.receiver_config,
+            &ccm.receiver_keys,
+            &cbc_envelope,
+            &legacy_context(),
+        ));
+
+        let ccm_envelope = seal(
+            &ccm.sender_config,
+            &ccm.sender_keys,
+            b"ccm payload",
+            &legacy_context(),
+        )
+        .expect("CCM seal");
+        assert_invalid_envelope(open(
+            &cbc.receiver_config,
+            &cbc.receiver_keys,
+            &ccm_envelope,
+            &legacy_context(),
+        ));
     }
 }
