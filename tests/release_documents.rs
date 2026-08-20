@@ -443,6 +443,7 @@ fn security_model_is_versioned_and_states_claims_and_non_claims() {
             "## Supported versions",
             "| 0.2.x | Yes |",
             "| 0.3.x | Yes |",
+            "| 0.4.x | Unreleased (`main`) |",
         ],
     );
     assert!(
@@ -452,6 +453,10 @@ fn security_model_is_versioned_and_states_claims_and_non_claims() {
     assert!(
         readme.contains("current tagged line (`v0.3.0`)"),
         "README release status must name the 0.3.0 tag"
+    );
+    assert!(
+        readme.contains("Version 0.4.0 is unreleased and in development on `main`."),
+        "README release status must name 0.4.0 as unreleased development"
     );
     assert!(
         !readme.contains("Version 0.3.0 is unreleased and in development on `main`."),
@@ -466,7 +471,7 @@ fn api_stability_policy_records_open_and_closed_boundaries() {
         &policy,
         &[
             "**Policy version:** 2",
-            "Within 0.3.x",
+            "Within 0.4.x",
             "AuthenticationMode",
             "AdapterErrorKind",
             "KeyKind",
@@ -476,8 +481,8 @@ fn api_stability_policy_records_open_and_closed_boundaries() {
             "CipherLocation",
             "`CipherLocation` is exhaustive",
             "ProtocolAdapter",
-            "api/gmcrypto-envelope-lite-0.3.0.txt",
-            "api/gmcrypto-envelope-lite-0.3.0-aead.txt",
+            "api/gmcrypto-envelope-lite-0.4.0.txt",
+            "api/gmcrypto-envelope-lite-0.4.0-aead.txt",
         ],
     );
 }
@@ -517,7 +522,7 @@ fn cryptographic_dependency_inventory_records_the_reviewed_root_lockfile() {
         &[
             "**Inventory version:** 2",
             "`gmcrypto-core` | `1.11.0` | `x509`",
-            "`cb0ee0fc8572307aeccea2a43815e461b52e626d9e077130f335232af0736feb`",
+            "`0fa7b812e350675f3cfd759f22f32500acb3f5626c3f5a1bf96af13f83066a92`",
             "unsafe_code = \"forbid\"",
             "No universal constant-time claim",
         ],

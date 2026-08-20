@@ -63,7 +63,7 @@ mkdir "$fixture/source"
 if "$package_script" "$fixture/source" "$fixture/package" >/dev/null 2>&1; then
     fail "Cargo package command accepted a source root without Cargo.toml"
 fi
-printf '%s\n' '[package]' 'name = "gmcrypto-envelope-lite"' 'version = "0.3.0"' \
+printf '%s\n' '[package]' 'name = "gmcrypto-envelope-lite"' 'version = "0.4.0"' \
     >"$fixture/source/Cargo.toml"
 if "$package_script" "$fixture/source" "$fixture/package" >/dev/null 2>&1; then
     fail "Cargo package command accepted a source root without a boundary scanner"
@@ -175,7 +175,7 @@ chmod +x "$fixture/tool-resolution/rustup-bin/rustup" \
     "$fixture/tool-resolution/pinned-bin/rustc"
 
 mkdir "$fixture/tool-source" "$fixture/tool-source/ci"
-printf '%s\n' '[package]' 'name = "gmcrypto-envelope-lite"' 'version = "0.3.0"' \
+printf '%s\n' '[package]' 'name = "gmcrypto-envelope-lite"' 'version = "0.4.0"' \
     >"$fixture/tool-source/Cargo.toml"
 printf '%s\n' '#!/bin/sh' 'exit 0' >"$fixture/tool-source/ci/check-open-source-boundary.sh"
 chmod +x "$fixture/tool-source/ci/check-open-source-boundary.sh"
@@ -269,34 +269,34 @@ test -f "$fixture/replaced-output/user-file" || \
 
 mkdir "$fixture/archive-fixtures" "$fixture/archive-fixtures/valid" \
     "$fixture/archive-fixtures/other"
-mkdir -p "$fixture/archive-fixtures/valid/gmcrypto-envelope-lite-0.3.0/src"
+mkdir -p "$fixture/archive-fixtures/valid/gmcrypto-envelope-lite-0.4.0/src"
 printf '%s\n' 'public package content' \
-    >"$fixture/archive-fixtures/valid/gmcrypto-envelope-lite-0.3.0/src/lib.rs"
-printf '%s\n' '[package]' 'name = "gmcrypto-envelope-lite"' 'version = "0.3.0"' \
-    >"$fixture/archive-fixtures/valid/gmcrypto-envelope-lite-0.3.0/Cargo.toml"
+    >"$fixture/archive-fixtures/valid/gmcrypto-envelope-lite-0.4.0/src/lib.rs"
+printf '%s\n' '[package]' 'name = "gmcrypto-envelope-lite"' 'version = "0.4.0"' \
+    >"$fixture/archive-fixtures/valid/gmcrypto-envelope-lite-0.4.0/Cargo.toml"
 tar -czf "$fixture/archive-fixtures/valid.crate" \
-    -C "$fixture/archive-fixtures/valid" gmcrypto-envelope-lite-0.3.0
+    -C "$fixture/archive-fixtures/valid" gmcrypto-envelope-lite-0.4.0
 cp -R "$fixture/archive-fixtures/valid" "$fixture/archive-fixtures/internal-identity"
 printf '%s\n' '[package]' 'name = "different-package"' 'version = "9.9.9"' \
-    >"$fixture/archive-fixtures/internal-identity/gmcrypto-envelope-lite-0.3.0/Cargo.toml"
+    >"$fixture/archive-fixtures/internal-identity/gmcrypto-envelope-lite-0.4.0/Cargo.toml"
 tar -czf "$fixture/archive-fixtures/internal-identity.crate" \
-    -C "$fixture/archive-fixtures/internal-identity" gmcrypto-envelope-lite-0.3.0
-mkdir -p "$fixture/archive-fixtures/other/gmcrypto-envelope-lite-0.3.0" \
+    -C "$fixture/archive-fixtures/internal-identity" gmcrypto-envelope-lite-0.4.0
+mkdir -p "$fixture/archive-fixtures/other/gmcrypto-envelope-lite-0.4.0" \
     "$fixture/archive-fixtures/other/second-root"
-printf '%s\n' valid >"$fixture/archive-fixtures/other/gmcrypto-envelope-lite-0.3.0/file"
+printf '%s\n' valid >"$fixture/archive-fixtures/other/gmcrypto-envelope-lite-0.4.0/file"
 printf '%s\n' invalid >"$fixture/archive-fixtures/other/second-root/file"
 tar -czf "$fixture/archive-fixtures/multi-root.crate" \
-    -C "$fixture/archive-fixtures/other" gmcrypto-envelope-lite-0.3.0 second-root
-mkdir -p "$fixture/archive-fixtures/special/gmcrypto-envelope-lite-0.3.0"
-printf '%s\n' target >"$fixture/archive-fixtures/special/gmcrypto-envelope-lite-0.3.0/target"
+    -C "$fixture/archive-fixtures/other" gmcrypto-envelope-lite-0.4.0 second-root
+mkdir -p "$fixture/archive-fixtures/special/gmcrypto-envelope-lite-0.4.0"
+printf '%s\n' target >"$fixture/archive-fixtures/special/gmcrypto-envelope-lite-0.4.0/target"
 special_archive_supported=0
-if ln -s target "$fixture/archive-fixtures/special/gmcrypto-envelope-lite-0.3.0/link" \
-    2>/dev/null && test -L "$fixture/archive-fixtures/special/gmcrypto-envelope-lite-0.3.0/link"; then
+if ln -s target "$fixture/archive-fixtures/special/gmcrypto-envelope-lite-0.4.0/link" \
+    2>/dev/null && test -L "$fixture/archive-fixtures/special/gmcrypto-envelope-lite-0.4.0/link"; then
     tar -czf "$fixture/archive-fixtures/special.crate" \
-        -C "$fixture/archive-fixtures/special" gmcrypto-envelope-lite-0.3.0
+        -C "$fixture/archive-fixtures/special" gmcrypto-envelope-lite-0.4.0
     special_archive_supported=1
 else
-    rm -f "$fixture/archive-fixtures/special/gmcrypto-envelope-lite-0.3.0/link"
+    rm -f "$fixture/archive-fixtures/special/gmcrypto-envelope-lite-0.4.0/link"
 fi
 mkdir -p "$fixture/archive-fixtures/wrong/wrong-root"
 printf '%s\n' invalid >"$fixture/archive-fixtures/wrong/wrong-root/file"
@@ -329,7 +329,7 @@ case "${3-}" in
     '')
         test "${FAKE_PACKAGE_CASE:-valid}" != build-failure || exit 88
         mkdir -p "$CARGO_TARGET_DIR/package"
-        output_name=${FAKE_CRATE_NAME:-gmcrypto-envelope-lite-0.3.0.crate}
+        output_name=${FAKE_CRATE_NAME:-gmcrypto-envelope-lite-0.4.0.crate}
         cp "$FAKE_CRATE" "$CARGO_TARGET_DIR/package/$output_name"
         ;;
     *) echo "unexpected third fake Cargo argument: ${3-}" >&2; exit 83 ;;
@@ -357,7 +357,7 @@ if ! run_fake_package valid "$fixture/archive-fixtures/valid.crate"; then
     sed -n '1,20p' "$fixture/fake-package-valid.err" >&2
     fail "Cargo package command rejected a valid single-root archive fixture"
 fi
-test -f "$fixture/fake-package-valid/gmcrypto-envelope-lite-0.3.0.crate" || \
+test -f "$fixture/fake-package-valid/gmcrypto-envelope-lite-0.4.0.crate" || \
     fail "Cargo package command did not produce the exact expected crate"
 test "$(find "$fixture/fake-package-valid" -mindepth 1 -maxdepth 1 -print | wc -l | tr -d '[:space:]')" -eq 1 || \
     fail "Cargo package command produced an unexpected artifact set"
@@ -387,7 +387,7 @@ if test "$special_archive_supported" -eq 1; then
 fi
 
 if run_fake_package crate-name "$fixture/archive-fixtures/valid.crate" \
-    FAKE_CRATE_NAME=different-package-0.3.0.crate; then
+    FAKE_CRATE_NAME=different-package-0.4.0.crate; then
     fail "Cargo package command accepted a mismatched crate filename"
 fi
 test ! -e "$fixture/fake-package-crate-name" || \
@@ -409,7 +409,7 @@ cp "$repo_root/ci/check-release-candidate.sh" "$repo_root/ci/check-cargo-package
 printf '%s\n' \
     '[package]' \
     'name = "gmcrypto-envelope-lite"' \
-    'version = "0.3.0"' \
+    'version = "0.4.0"' \
     'edition = "2024"' \
     'publish = false' \
     >"$rc_repo/Cargo.toml"
@@ -540,7 +540,7 @@ case "$*" in
     'package --locked')
         mkdir -p "$CARGO_TARGET_DIR/package"
         cp "$FAKE_RC_CRATE" \
-            "$CARGO_TARGET_DIR/package/gmcrypto-envelope-lite-0.3.0.crate"
+            "$CARGO_TARGET_DIR/package/gmcrypto-envelope-lite-0.4.0.crate"
         ;;
     *) echo "unexpected stable Cargo arguments: $*" >&2; exit 83 ;;
 esac
@@ -641,8 +641,8 @@ if ! cmp -s "$fixture/expected-rc-cargo.log" "$fixture/rc-cargo.log"; then
     fail "release-candidate command did not execute the exact default/AEAD Cargo gate matrix"
 fi
 for artifact in \
-    gmcrypto-envelope-lite-0.3.0-source.tar.gz \
-    gmcrypto-envelope-lite-0.3.0.crate rc-manifest.json SHA256SUMS
+    gmcrypto-envelope-lite-0.4.0-source.tar.gz \
+    gmcrypto-envelope-lite-0.4.0.crate rc-manifest.json SHA256SUMS
 do
     test -f "$rc_output/$artifact" && test ! -L "$rc_output/$artifact" || \
         fail "fake RC artifact is missing or not regular: $artifact"
@@ -653,8 +653,8 @@ test "$(find "$rc_output" -mindepth 1 -maxdepth 1 -print | wc -l | tr -d '[:spac
 python3 - \
     "$rc_output/rc-manifest.json" \
     "$rc_commit" \
-    "$rc_output/gmcrypto-envelope-lite-0.3.0-source.tar.gz" \
-    "$rc_output/gmcrypto-envelope-lite-0.3.0.crate" \
+    "$rc_output/gmcrypto-envelope-lite-0.4.0-source.tar.gz" \
+    "$rc_output/gmcrypto-envelope-lite-0.4.0.crate" \
     "$rc_repo/Cargo.lock" <<'PY' || fail "fake RC manifest identity does not match its artifacts"
 import hashlib
 import json
@@ -681,7 +681,7 @@ def require(condition, message):
 
 
 require(manifest.get("package") == "gmcrypto-envelope-lite", "package mismatch")
-require(manifest.get("version") == "0.3.0", "version mismatch")
+require(manifest.get("version") == "0.4.0", "version mismatch")
 require(manifest.get("commit") == expected_commit, "commit mismatch")
 
 source = manifest.get("source_archive", {})

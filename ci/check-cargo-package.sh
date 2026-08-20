@@ -57,7 +57,7 @@ test -f "$boundary_scanner" && test ! -L "$boundary_scanner" && \
 package_name=$(package_field name) || fail "could not read package name"
 package_version=$(package_field version) || fail "could not read package version"
 test "$package_name" = gmcrypto-envelope-lite || fail "unexpected Cargo package name"
-test "$package_version" = 0.3.0 || fail "unexpected Cargo package version"
+test "$package_version" = 0.4.0 || fail "unexpected Cargo package version"
 expected_crate="$package_name-$package_version.crate"
 expected_root="$package_name-$package_version"
 

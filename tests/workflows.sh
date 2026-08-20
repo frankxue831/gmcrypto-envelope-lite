@@ -484,7 +484,7 @@ check_contract() (
     require_exact_line "$check_tmp/release-upload" '        with:' \
         "release-candidate upload must define exactly one with block"
     require_exact_line "$check_tmp/release-upload" \
-        "          name: gmcrypto-envelope-lite-0.3.0-rc-built-\${{ github.sha }}" \
+        "          name: gmcrypto-envelope-lite-0.4.0-rc-built-\${{ github.sha }}" \
         "release-candidate artifact name must bind the commit"
     require_exact_line "$check_tmp/release-upload" \
         "          path: \${{ runner.temp }}/gmcrypto-envelope-lite-rc/" \
