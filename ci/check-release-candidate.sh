@@ -85,7 +85,7 @@ test -z "$(git -C "$repo_root" status --porcelain --untracked-files=all)" || \
     fail "worktree must be clean before RC construction"
 
 package_name=gmcrypto-envelope-lite
-package_version=0.2.0
+package_version=0.3.0
 manifest_package_name=$(package_field name) || fail "could not read Cargo package name"
 manifest_package_version=$(package_field version) || fail "could not read Cargo package version"
 test "$manifest_package_name" = "$package_name" || fail "Cargo package name does not match RC identity"

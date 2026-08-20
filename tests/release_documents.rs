@@ -232,7 +232,7 @@ fn crate_manifest_uses_final_identity() {
     );
     assert!(
         !manifest.contains("publish = false"),
-        "publication is enabled for the 0.2.0 release; publish = false must stay removed"
+        "publication remains enabled; publish = false must stay removed"
     );
 }
 
@@ -437,7 +437,14 @@ fn security_model_is_versioned_and_states_claims_and_non_claims() {
     let policy = repository_file("SECURITY.md");
     assert!(readme.contains("[Security model](SECURITY_MODEL.md)"));
     assert!(policy.contains("[Security model](SECURITY_MODEL.md)"));
-    assert_markers(&policy, &["## Supported versions", "| 0.2.x | Yes |"]);
+    assert_markers(
+        &policy,
+        &[
+            "## Supported versions",
+            "| 0.2.x | Yes |",
+            "| 0.3.x | Unreleased (`main`) |",
+        ],
+    );
 }
 
 #[test]
@@ -447,7 +454,7 @@ fn api_stability_policy_records_open_and_closed_boundaries() {
         &policy,
         &[
             "**Policy version:** 2",
-            "Within 0.2.x",
+            "Within 0.3.x",
             "AuthenticationMode",
             "AdapterErrorKind",
             "KeyKind",
@@ -457,8 +464,8 @@ fn api_stability_policy_records_open_and_closed_boundaries() {
             "CipherLocation",
             "`CipherLocation` is exhaustive",
             "ProtocolAdapter",
-            "api/gmcrypto-envelope-lite-0.2.0.txt",
-            "api/gmcrypto-envelope-lite-0.2.0-aead.txt",
+            "api/gmcrypto-envelope-lite-0.3.0.txt",
+            "api/gmcrypto-envelope-lite-0.3.0-aead.txt",
         ],
     );
 }

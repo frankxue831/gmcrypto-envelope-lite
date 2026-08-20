@@ -2,7 +2,7 @@
 
 **Model version:** 2
 
-This document defines the security claims and non-claims for `gmcrypto-envelope-lite` 0.2.x. It is not an independent audit, certification, warranty, or proof of cryptographic security.
+This document defines the security claims and non-claims for `gmcrypto-envelope-lite` 0.3.x. It is not an independent audit, certification, warranty, or proof of cryptographic security.
 
 ## Protected assets and attacker-controlled inputs
 

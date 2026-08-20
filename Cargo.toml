@@ -1,6 +1,6 @@
 [package]
 name = "gmcrypto-envelope-lite"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.85"
 description = "HTTP-neutral SM2/SM3 and SM4 secure-envelope primitives"
