@@ -442,8 +442,20 @@ fn security_model_is_versioned_and_states_claims_and_non_claims() {
         &[
             "## Supported versions",
             "| 0.2.x | Yes |",
-            "| 0.3.x | Unreleased (`main`) |",
+            "| 0.3.x | Yes |",
         ],
+    );
+    assert!(
+        !policy.contains("| 0.3.x | Unreleased (`main`) |"),
+        "0.3.x must not remain Unreleased after the freeze"
+    );
+    assert!(
+        readme.contains("current tagged line (`v0.3.0`)"),
+        "README release status must name the 0.3.0 tag"
+    );
+    assert!(
+        !readme.contains("Version 0.3.0 is unreleased and in development on `main`."),
+        "README must not still describe 0.3.0 as unreleased development"
     );
 }
 
