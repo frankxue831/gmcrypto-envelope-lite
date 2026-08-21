@@ -51,7 +51,7 @@ The envelope mode and AEAD algorithm are pinned by `ClientConfig` and never infe
 
 | | `EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm)` — feature `aead` (recommended AEAD) | `EnvelopeMode::Aead(AeadAlgorithm::Sm4Ccm)` — feature `aead` | `EnvelopeMode::LegacyCbc` — default |
 | --- | --- | --- | --- |
-| Payload cipher | SM4-GCM with a fresh random 12-byte nonce and a full 16-byte tag per envelope; frame id `0x01` | SM4-CCM with a fresh random 12-byte nonce and a full 16-byte tag per envelope; frame id `0x02`; plaintext ceiling `SM4_CCM_MAX_PLAINTEXT_BYTES` (`2^24 - 1`) | SM4-CBC with the configured fixed IV |
+| Payload cipher | SM4-GCM with a fresh random 12-byte nonce and a full 16-byte tag per envelope; frame id `0x01` | SM4-CCM with a fresh random 12-byte nonce and a full 16-byte tag per envelope; frame id `0x02`; plaintext limit defaults to `SM4_CCM_DEFAULT_MAX_PLAINTEXT_BYTES` (64 KiB) and may be raised explicitly to the ceiling `SM4_CCM_MAX_PLAINTEXT_BYTES` (`2^24 - 1`) | SM4-CBC with the configured fixed IV |
 | Ciphertext integrity | AEAD tag, verified before any plaintext is produced | AEAD tag; CCM decrypts CTR plaintext before verifying CBC-MAC, then wipes its tentative plaintext on tag failure (other primitive-internal copies are not wiped — see `SECURITY_MODEL.md`) | none from the cipher; only the SM2 signature, after decryption |
 | Bound metadata | frame header always; domain separator and protocol context under `ContextBound` (empty fields under `LegacyPlaintext`), all in the AAD | same AAD as GCM | signed transcript only |
 | Replay protection | none — application concern | none — application concern | none — application concern |

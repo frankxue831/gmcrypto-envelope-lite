@@ -8,11 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- Opt-in SM4-CCM envelope algorithm (`AeadAlgorithm::Sm4Ccm`) behind the existing `aead` feature. Frame algorithm id `0x02` uses the same 14-byte header, 12-byte nonce, 16-byte tag, and AAD as SM4-GCM. The algorithm is config-pinned with no negotiation: GCM, CCM, and CBC clients reject each other's envelopes. `SM4_CCM_MAX_PLAINTEXT_BYTES` (`2^24 - 1`) is the CCM plaintext ceiling under the pinned 12-byte nonce; omitted `max_plaintext_bytes` on a CCM client defaults to that ceiling, and a larger explicit limit is `Error::Configuration`. Known-answer test pinned to the OpenSSL 3.x EVP SM4-CCM baseline shipped by `gmcrypto-core` 1.11.0; `aead_ccm_envelope` fuzz target with a curated corpus.
+- Opt-in SM4-CCM envelope algorithm (`AeadAlgorithm::Sm4Ccm`) behind the existing `aead` feature. Frame algorithm id `0x02` uses the same 14-byte header, 12-byte nonce, 16-byte tag, and AAD as SM4-GCM. The algorithm is config-pinned with no negotiation: GCM, CCM, and CBC clients reject each other's envelopes. `SM4_CCM_MAX_PLAINTEXT_BYTES` (`2^24 - 1`) is the CCM plaintext ceiling under the pinned 12-byte nonce; omitted `max_plaintext_bytes` on a CCM client defaults to `SM4_CCM_DEFAULT_MAX_PLAINTEXT_BYTES` (64 KiB, bounding the pre-verification work a forged envelope can demand of CCM's decrypt-before-verify construction), and an explicit limit above the ceiling is `Error::Configuration`. Known-answer test pinned to the OpenSSL 3.x EVP SM4-CCM baseline shipped by `gmcrypto-core` 1.11.0; `aead_ccm_envelope` fuzz target with a curated corpus.
 
 ### Changed
 
-- Version identity moved to 0.4.0. The tagged 0.3.0 and 0.2.0 lines are unchanged. The default-feature public API snapshot remains content-identical to 0.3.0; the `aead` snapshot adds `AeadAlgorithm::Sm4Ccm` and `SM4_CCM_MAX_PLAINTEXT_BYTES`.
+- Version identity moved to 0.4.0. The tagged 0.3.0 and 0.2.0 lines are unchanged. The default-feature public API snapshot remains content-identical to 0.3.0; the `aead` snapshot adds `AeadAlgorithm::Sm4Ccm`, `SM4_CCM_DEFAULT_MAX_PLAINTEXT_BYTES`, and `SM4_CCM_MAX_PLAINTEXT_BYTES`.
 
 ## [0.3.0] - 2026-08-20
 
