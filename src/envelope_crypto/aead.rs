@@ -1,4 +1,4 @@
-//! The SM4-GCM authenticated-encryption payload mode.
+//! The SM4-GCM and SM4-CCM authenticated-encryption payload modes.
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
