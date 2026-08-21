@@ -9,6 +9,16 @@ pub const DEFAULT_MAX_PLAINTEXT_BYTES: usize = 16 * 1024 * 1024;
 /// below [`DEFAULT_MAX_PLAINTEXT_BYTES`].
 #[cfg(feature = "aead")]
 pub const SM4_CCM_MAX_PLAINTEXT_BYTES: usize = (1 << 24) - 1;
+/// Default maximum plaintext for an SM4-CCM client: 64 KiB.
+///
+/// CCM decrypts before verifying the tag, so rejecting a forged envelope
+/// costs two full SM4 passes over up to the configured limit — work any
+/// sender holding the receiver's public encryption certificate can trigger
+/// without authenticating. The default bounds that cost; a client that
+/// needs larger payloads must raise the limit explicitly, up to
+/// [`SM4_CCM_MAX_PLAINTEXT_BYTES`].
+#[cfg(feature = "aead")]
+pub const SM4_CCM_DEFAULT_MAX_PLAINTEXT_BYTES: usize = 64 * 1024;
 const MAX_SIGNER_ID_BYTES: usize = u16::MAX as usize / 8;
 
 /// Stable, non-secret identifiers exposed to protocol adapters.
@@ -109,10 +119,11 @@ pub enum AeadAlgorithm {
     /// Frame algorithm id `0x02`. Not a negotiation field: a client
     /// accepts only the identifier its configuration pins. CCM decrypts
     /// before verifying (the primitive wipes tentative plaintext on tag
-    /// failure). The pinned 12-byte nonce caps plaintext at
-    /// [`SM4_CCM_MAX_PLAINTEXT_BYTES`], which is also the default limit
-    /// under this algorithm; a larger explicit
-    /// [`ClientConfigBuilder::max_plaintext_bytes`] is rejected by
+    /// failure). An omitted [`ClientConfigBuilder::max_plaintext_bytes`]
+    /// defaults to [`SM4_CCM_DEFAULT_MAX_PLAINTEXT_BYTES`] (64 KiB) to
+    /// bound the pre-verification work a forged envelope can demand; the
+    /// pinned 12-byte nonce caps an explicit limit at
+    /// [`SM4_CCM_MAX_PLAINTEXT_BYTES`], and a larger value is rejected by
     /// [`ClientConfigBuilder::build`]. New integrations should prefer
     /// [`AeadAlgorithm::Sm4Gcm`].
     Sm4Ccm,
@@ -285,12 +296,13 @@ impl ClientConfigBuilder {
     /// Overrides the default maximum plaintext size.
     ///
     /// The default is `DEFAULT_MAX_PLAINTEXT_BYTES`, except under
-    /// `EnvelopeMode::Aead(AeadAlgorithm::Sm4Ccm)`, where the pinned
-    /// 12-byte nonce lowers both the default and the accepted maximum to
-    /// `SM4_CCM_MAX_PLAINTEXT_BYTES` (`2^24 - 1`). A larger explicit value
-    /// makes [`ClientConfigBuilder::build`] fail with
-    /// `Error::Configuration`, so a configuration ported from SM4-GCM that
-    /// sets 16 MiB explicitly must be lowered.
+    /// `EnvelopeMode::Aead(AeadAlgorithm::Sm4Ccm)`, which defaults to
+    /// `SM4_CCM_DEFAULT_MAX_PLAINTEXT_BYTES` (64 KiB) and accepts explicit
+    /// values only up to `SM4_CCM_MAX_PLAINTEXT_BYTES` (`2^24 - 1`), the
+    /// pinned 12-byte nonce's ceiling. A larger explicit value makes
+    /// [`ClientConfigBuilder::build`] fail with `Error::Configuration`, so
+    /// a configuration ported from SM4-GCM that sets 16 MiB explicitly
+    /// must be lowered.
     #[must_use]
     pub fn max_plaintext_bytes(mut self, value: usize) -> Self {
         self.max_plaintext_bytes = Some(value);
@@ -341,7 +353,7 @@ impl ClientConfigBuilder {
         let max_plaintext_bytes = {
             let max = self.max_plaintext_bytes.unwrap_or(
                 if matches!(envelope_mode, EnvelopeMode::Aead(AeadAlgorithm::Sm4Ccm)) {
-                    SM4_CCM_MAX_PLAINTEXT_BYTES
+                    SM4_CCM_DEFAULT_MAX_PLAINTEXT_BYTES
                 } else {
                     DEFAULT_MAX_PLAINTEXT_BYTES
                 },
@@ -463,7 +475,7 @@ mod tests {
         );
         assert_eq!(
             config.max_plaintext_bytes(),
-            super::SM4_CCM_MAX_PLAINTEXT_BYTES
+            super::SM4_CCM_DEFAULT_MAX_PLAINTEXT_BYTES
         );
 
         let with_iv = base_builder()
