@@ -835,10 +835,7 @@ pub fn ccm_encoded_values(data: &[u8]) -> (String, String, String) {
     aead_encoded_values_for(data, ccm_valid_envelope())
 }
 
-fn aead_encoded_values_for(
-    data: &[u8],
-    envelope: &SecureEnvelope,
-) -> (String, String, String) {
+fn aead_encoded_values_for(data: &[u8], envelope: &SecureEnvelope) -> (String, String, String) {
     let [signature_raw, wrapped_raw, cipher_raw] = fields(data);
     let selectors = data.get(..6).unwrap_or_default();
     (
