@@ -1237,6 +1237,36 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "seals 2^24-1 bytes: ~133s release, far longer unoptimized"]
+    fn ccm_seals_exactly_the_12_byte_nonce_ceiling() {
+        // The largest plaintext q=3 admits. SM4-CCM measures ~0.25 MB/s here,
+        // so this cannot join the default gate; run it explicitly with
+        // `cargo test --release --features aead -- --ignored`.
+        let peers = ccm_peers(
+            AuthenticationMode::LegacyPlaintext,
+            crate::SM4_CCM_MAX_PLAINTEXT_BYTES,
+        );
+        let plaintext = vec![0x5a_u8; crate::SM4_CCM_MAX_PLAINTEXT_BYTES];
+        let envelope = seal(
+            &peers.sender_config,
+            &peers.sender_keys,
+            &plaintext,
+            &legacy_context(),
+        )
+        .expect("ceiling plaintext seals");
+        assert_eq!(
+            open(
+                &peers.receiver_config,
+                &peers.receiver_keys,
+                &envelope,
+                &legacy_context(),
+            )
+            .expect("ceiling plaintext opens"),
+            plaintext
+        );
+    }
+
+    #[test]
     fn ccm_primitive_rejects_plaintext_above_the_12_byte_nonce_ceiling() {
         let key = [0x42_u8; 16];
         let nonce = [0_u8; 12];
