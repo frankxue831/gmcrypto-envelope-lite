@@ -6,7 +6,7 @@ use std::path::Path;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
-use gmcrypto_envelope_lite::{Error, ProtocolAdapter, RequestParts, ResponseParts};
+use gmcrypto_envelope_lite::{Error, ProtocolAdapter, RequestParts, ResponseParts, SecureEnvelope};
 
 use support::ScenarioOutcome::{Accepted, Rejected};
 
@@ -958,35 +958,19 @@ fn curated_aead_ccm_seeds_open_or_reject_as_their_contract_requires() {
     }
 }
 
-#[test]
-fn curated_aead_mutation_seeds_change_their_named_frame_regions() {
-    let valid_cipher = &support::aead_valid_envelope().cipher;
+fn assert_mutation_seeds_change_their_named_frame_regions(
+    valid_envelope: &SecureEnvelope,
+    encoded_values: fn(&[u8]) -> (String, String, String),
+    cases: [(&str, &[u8], usize, &[usize]); 3],
+) {
+    let valid_cipher = &valid_envelope.cipher;
     let valid = STANDARD
         .decode(valid_cipher)
         .expect("valid AEAD cipher is Base64");
     assert_eq!(valid.len(), 43, "fixture frame length");
 
-    for (name, seed, selector, expected_changed_bytes) in [
-        (
-            "cryptographic_mutation_nonce",
-            include_bytes!("../corpus/aead_envelope/cryptographic_mutation_nonce").as_slice(),
-            8,
-            &[6][..],
-        ),
-        (
-            "cryptographic_mutation_cipher",
-            include_bytes!("../corpus/aead_envelope/cryptographic_mutation_cipher").as_slice(),
-            20,
-            &[15][..],
-        ),
-        (
-            "cryptographic_mutation_tag",
-            include_bytes!("../corpus/aead_envelope/cryptographic_mutation_tag").as_slice(),
-            40,
-            &[30][..],
-        ),
-    ] {
-        let (_, _, cipher) = support::aead_encoded_values(seed);
+    for (name, seed, selector, expected_changed_bytes) in cases {
+        let (_, _, cipher) = encoded_values(seed);
         let changed_base64_positions = valid_cipher
             .bytes()
             .zip(cipher.bytes())
@@ -1006,68 +990,73 @@ fn curated_aead_mutation_seeds_change_their_named_frame_regions() {
 }
 
 #[test]
-fn curated_aead_boundary_seeds_reach_literal_auxiliary_and_cipher_limits() {
+fn curated_aead_mutation_seeds_change_their_named_frame_regions() {
+    assert_mutation_seeds_change_their_named_frame_regions(
+        support::aead_valid_envelope(),
+        support::aead_encoded_values,
+        [
+            (
+                "cryptographic_mutation_nonce",
+                include_bytes!("../corpus/aead_envelope/cryptographic_mutation_nonce").as_slice(),
+                8,
+                &[6][..],
+            ),
+            (
+                "cryptographic_mutation_cipher",
+                include_bytes!("../corpus/aead_envelope/cryptographic_mutation_cipher").as_slice(),
+                20,
+                &[15][..],
+            ),
+            (
+                "cryptographic_mutation_tag",
+                include_bytes!("../corpus/aead_envelope/cryptographic_mutation_tag").as_slice(),
+                40,
+                &[30][..],
+            ),
+        ],
+    );
+}
+
+#[test]
+fn curated_aead_ccm_mutation_seeds_change_their_named_frame_regions() {
+    assert_mutation_seeds_change_their_named_frame_regions(
+        support::ccm_valid_envelope(),
+        support::ccm_encoded_values,
+        [
+            (
+                "cryptographic_mutation_nonce",
+                include_bytes!("../corpus/aead_ccm_envelope/cryptographic_mutation_nonce")
+                    .as_slice(),
+                8,
+                &[6][..],
+            ),
+            (
+                "cryptographic_mutation_cipher",
+                include_bytes!("../corpus/aead_ccm_envelope/cryptographic_mutation_cipher")
+                    .as_slice(),
+                20,
+                &[15][..],
+            ),
+            (
+                "cryptographic_mutation_tag",
+                include_bytes!("../corpus/aead_ccm_envelope/cryptographic_mutation_tag").as_slice(),
+                40,
+                &[30][..],
+            ),
+        ],
+    );
+}
+
+fn assert_boundary_seeds_reach_literal_auxiliary_and_cipher_limits(
+    valid: &SecureEnvelope,
+    encoded_values: fn(&[u8]) -> (String, String, String),
+    cases: [(&str, &[u8], usize, usize); 9],
+) {
     assert_eq!(support::AEAD_FRAME_OVERHEAD_BYTES, 30);
     assert_eq!(support::AEAD_CIPHER_LIMIT, 128);
 
-    let valid = support::aead_valid_envelope();
-    for (name, seed, field, expected_len) in [
-        (
-            "signature_limit_minus_one",
-            include_bytes!("../corpus/aead_envelope/signature_limit_minus_one").as_slice(),
-            0,
-            16_383,
-        ),
-        (
-            "signature_limit",
-            include_bytes!("../corpus/aead_envelope/signature_limit").as_slice(),
-            0,
-            16_384,
-        ),
-        (
-            "signature_limit_plus_one",
-            include_bytes!("../corpus/aead_envelope/signature_limit_plus_one").as_slice(),
-            0,
-            16_385,
-        ),
-        (
-            "wrapped_key_limit_minus_one",
-            include_bytes!("../corpus/aead_envelope/wrapped_key_limit_minus_one").as_slice(),
-            1,
-            16_383,
-        ),
-        (
-            "wrapped_key_limit",
-            include_bytes!("../corpus/aead_envelope/wrapped_key_limit").as_slice(),
-            1,
-            16_384,
-        ),
-        (
-            "wrapped_key_limit_plus_one",
-            include_bytes!("../corpus/aead_envelope/wrapped_key_limit_plus_one").as_slice(),
-            1,
-            16_385,
-        ),
-        (
-            "cipher_limit_minus_one",
-            include_bytes!("../corpus/aead_envelope/cipher_limit_minus_one").as_slice(),
-            2,
-            127,
-        ),
-        (
-            "cipher_limit",
-            include_bytes!("../corpus/aead_envelope/cipher_limit").as_slice(),
-            2,
-            128,
-        ),
-        (
-            "cipher_limit_plus_one",
-            include_bytes!("../corpus/aead_envelope/cipher_limit_plus_one").as_slice(),
-            2,
-            129,
-        ),
-    ] {
-        let values = support::aead_encoded_values(seed);
+    for (name, seed, field, expected_len) in cases {
+        let values = encoded_values(seed);
         let actual = [&values.0, &values.1, &values.2];
         assert_eq!(actual[field].len(), expected_len, "{name}");
         for unchanged in 0..3 {
@@ -1077,6 +1066,135 @@ fn curated_aead_boundary_seeds_reach_literal_auxiliary_and_cipher_limits() {
             }
         }
     }
+}
+
+#[test]
+fn curated_aead_boundary_seeds_reach_literal_auxiliary_and_cipher_limits() {
+    assert_boundary_seeds_reach_literal_auxiliary_and_cipher_limits(
+        support::aead_valid_envelope(),
+        support::aead_encoded_values,
+        [
+            (
+                "signature_limit_minus_one",
+                include_bytes!("../corpus/aead_envelope/signature_limit_minus_one").as_slice(),
+                0,
+                16_383,
+            ),
+            (
+                "signature_limit",
+                include_bytes!("../corpus/aead_envelope/signature_limit").as_slice(),
+                0,
+                16_384,
+            ),
+            (
+                "signature_limit_plus_one",
+                include_bytes!("../corpus/aead_envelope/signature_limit_plus_one").as_slice(),
+                0,
+                16_385,
+            ),
+            (
+                "wrapped_key_limit_minus_one",
+                include_bytes!("../corpus/aead_envelope/wrapped_key_limit_minus_one").as_slice(),
+                1,
+                16_383,
+            ),
+            (
+                "wrapped_key_limit",
+                include_bytes!("../corpus/aead_envelope/wrapped_key_limit").as_slice(),
+                1,
+                16_384,
+            ),
+            (
+                "wrapped_key_limit_plus_one",
+                include_bytes!("../corpus/aead_envelope/wrapped_key_limit_plus_one").as_slice(),
+                1,
+                16_385,
+            ),
+            (
+                "cipher_limit_minus_one",
+                include_bytes!("../corpus/aead_envelope/cipher_limit_minus_one").as_slice(),
+                2,
+                127,
+            ),
+            (
+                "cipher_limit",
+                include_bytes!("../corpus/aead_envelope/cipher_limit").as_slice(),
+                2,
+                128,
+            ),
+            (
+                "cipher_limit_plus_one",
+                include_bytes!("../corpus/aead_envelope/cipher_limit_plus_one").as_slice(),
+                2,
+                129,
+            ),
+        ],
+    );
+}
+
+#[test]
+fn curated_aead_ccm_boundary_seeds_reach_literal_auxiliary_and_cipher_limits() {
+    assert_boundary_seeds_reach_literal_auxiliary_and_cipher_limits(
+        support::ccm_valid_envelope(),
+        support::ccm_encoded_values,
+        [
+            (
+                "signature_limit_minus_one",
+                include_bytes!("../corpus/aead_ccm_envelope/signature_limit_minus_one").as_slice(),
+                0,
+                16_383,
+            ),
+            (
+                "signature_limit",
+                include_bytes!("../corpus/aead_ccm_envelope/signature_limit").as_slice(),
+                0,
+                16_384,
+            ),
+            (
+                "signature_limit_plus_one",
+                include_bytes!("../corpus/aead_ccm_envelope/signature_limit_plus_one").as_slice(),
+                0,
+                16_385,
+            ),
+            (
+                "wrapped_key_limit_minus_one",
+                include_bytes!("../corpus/aead_ccm_envelope/wrapped_key_limit_minus_one")
+                    .as_slice(),
+                1,
+                16_383,
+            ),
+            (
+                "wrapped_key_limit",
+                include_bytes!("../corpus/aead_ccm_envelope/wrapped_key_limit").as_slice(),
+                1,
+                16_384,
+            ),
+            (
+                "wrapped_key_limit_plus_one",
+                include_bytes!("../corpus/aead_ccm_envelope/wrapped_key_limit_plus_one").as_slice(),
+                1,
+                16_385,
+            ),
+            (
+                "cipher_limit_minus_one",
+                include_bytes!("../corpus/aead_ccm_envelope/cipher_limit_minus_one").as_slice(),
+                2,
+                127,
+            ),
+            (
+                "cipher_limit",
+                include_bytes!("../corpus/aead_ccm_envelope/cipher_limit").as_slice(),
+                2,
+                128,
+            ),
+            (
+                "cipher_limit_plus_one",
+                include_bytes!("../corpus/aead_ccm_envelope/cipher_limit_plus_one").as_slice(),
+                2,
+                129,
+            ),
+        ],
+    );
 }
 
 #[test]
