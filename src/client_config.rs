@@ -109,7 +109,12 @@ pub enum AeadAlgorithm {
     /// Frame algorithm id `0x02`. Not a negotiation field: a client
     /// accepts only the identifier its configuration pins. CCM decrypts
     /// before verifying (the primitive wipes tentative plaintext on tag
-    /// failure). New integrations should prefer [`AeadAlgorithm::Sm4Gcm`].
+    /// failure). The pinned 12-byte nonce caps plaintext at
+    /// [`SM4_CCM_MAX_PLAINTEXT_BYTES`], which is also the default limit
+    /// under this algorithm; a larger explicit
+    /// [`ClientConfigBuilder::max_plaintext_bytes`] is rejected by
+    /// [`ClientConfigBuilder::build`]. New integrations should prefer
+    /// [`AeadAlgorithm::Sm4Gcm`].
     Sm4Ccm,
 }
 
@@ -278,6 +283,14 @@ impl ClientConfigBuilder {
     }
 
     /// Overrides the default maximum plaintext size.
+    ///
+    /// The default is `DEFAULT_MAX_PLAINTEXT_BYTES`, except under
+    /// `EnvelopeMode::Aead(AeadAlgorithm::Sm4Ccm)`, where the pinned
+    /// 12-byte nonce lowers both the default and the accepted maximum to
+    /// `SM4_CCM_MAX_PLAINTEXT_BYTES` (`2^24 - 1`). A larger explicit value
+    /// makes [`ClientConfigBuilder::build`] fail with
+    /// `Error::Configuration`, so a configuration ported from SM4-GCM that
+    /// sets 16 MiB explicitly must be lowered.
     #[must_use]
     pub fn max_plaintext_bytes(mut self, value: usize) -> Self {
         self.max_plaintext_bytes = Some(value);
