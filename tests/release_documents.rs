@@ -513,16 +513,16 @@ fn cryptographic_dependency_inventory_records_the_reviewed_root_lockfile() {
     let inventory = repository_file("docs/security/cryptographic-dependencies.md");
 
     assert!(manifest.contains("gmcrypto-core = { version = \"1.11\", features = [\"x509\"] }"));
-    assert!(lockfile.contains("name = \"gmcrypto-core\"\nversion = \"1.11.0\""));
+    assert!(lockfile.contains("name = \"gmcrypto-core\"\nversion = \"1.11.2\""));
     assert!(lockfile.contains(
-        "checksum = \"4e81a6030cdbef95407ef7924aa2b60469d1263e094b667295cd3d787c2c3095\""
+        "checksum = \"8b9f850ddf82a1280dfbc8b9ea13768c1dd2fdb97826d4302712c30ae121f7ef\""
     ));
     assert_markers(
         &inventory,
         &[
             "**Inventory version:** 2",
-            "`gmcrypto-core` | `1.11.0` | `x509`",
-            "`0fa7b812e350675f3cfd759f22f32500acb3f5626c3f5a1bf96af13f83066a92`",
+            "`gmcrypto-core` | `1.11.2` | `x509`",
+            "`d5d8084db192b22dcb3a713c3c370c69ff166077b2372672dca6da76ae1eb348`",
             "unsafe_code = \"forbid\"",
             "No universal constant-time claim",
         ],
