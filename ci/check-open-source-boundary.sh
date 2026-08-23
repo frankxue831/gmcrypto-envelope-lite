@@ -102,6 +102,14 @@ if [ "${OPEN_SOURCE_DENYLIST_FILE+x}" = x ]; then
     fi
 fi
 
+# Worktree mode scans a live checkout, so it prunes the three root paths a
+# developer always has and no export ever carries, plus any `.git` that is a
+# regular file. That last one is a git worktree's gitlink, whose whole content
+# is `gitdir: <absolute path>` — machine-generated plumbing, never publishable,
+# and already accepted at the root. `-type f` is what keeps this narrow: a
+# nested `.git` *directory* is an embedded repository and stays a finding, and
+# a `.git` symlink stays a finding too. Complete mode prunes nothing: an export
+# has no business carrying any of these.
 find_special_entries() (
     if ! CDPATH='' cd -P -- "$root"; then
         exit 2
@@ -111,6 +119,7 @@ find_special_entries() (
             \( -path './.git' \( -type f -o -type d \) -prune \) -o \
             \( -path './target' -type d -prune \) -o \
             \( -path './fuzz/target' -type d -prune \) -o \
+            \( -name '.git' -type f -prune \) -o \
             \( ! -type d ! -type f -print \)
     else
         find . ! -type d ! -type f -print
@@ -135,6 +144,7 @@ run_file_exec() (
             \( -path './.git' \( -type f -o -type d \) -prune \) -o \
             \( -path './target' -type d -prune \) -o \
             \( -path './fuzz/target' -type d -prune \) -o \
+            \( -name '.git' -type f -prune \) -o \
             \( -type f -exec sh -c "$file_script" sh "$@" {} + \)
     else
         find . -type f -exec sh -c "$file_script" sh "$@" {} +
@@ -152,6 +162,7 @@ run_path_exec() (
             \( -path './.git' \( -type f -o -type d \) -prune \) -o \
             \( -path './target' -type d -prune \) -o \
             \( -path './fuzz/target' -type d -prune \) -o \
+            \( -name '.git' -type f -prune \) -o \
             \( \( -type d -o -type f \) -exec sh -c "$path_script" sh "$@" {} + \)
     else
         find . \( -type d -o -type f \) -exec sh -c "$path_script" sh "$@" {} +

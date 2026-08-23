@@ -14,6 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Version identity moved to 0.4.0. The tagged 0.3.0 and 0.2.0 lines are unchanged. The default-feature public API snapshot remains content-identical to 0.3.0; the `aead` snapshot adds `AeadAlgorithm::Sm4Ccm`, `SM4_CCM_DEFAULT_MAX_PLAINTEXT_BYTES`, and `SM4_CCM_MAX_PLAINTEXT_BYTES`.
 
+### Fixed
+
+- `ci/check-open-source-boundary.sh` no longer reports a violation for a git worktree's gitlink. In worktree mode it now prunes any `.git` that is a regular file, at any depth. Such a file is machine-generated plumbing whose entire content is `gitdir: <absolute path>`, and the scanner already accepted one at the repository root; it simply never reached a checkout under `.worktrees/`, so anyone with a worktree open saw the local scan fail on a path that `.gitignore` keeps out of every commit, export, and package archive. The prune is deliberately narrow: `-type f` leaves a nested `.git` *directory* — an embedded repository — a finding, leaves a `.git` symlink a finding, and leaves complete-export mode pruning nothing at all. The checkout's own source is still scanned, because `.worktrees` holds branch source rather than build output and the ecosystem charter's section 5 is explicit that untracked files are not a secrecy boundary. `tests/open_source_boundary.sh` gains five controls covering the accepted gitlink at both depths, the still-rejected directory and symlink, the still-scanned checkout content, and the still-rejected gitlink in an export.
+
 ## [0.3.0] - 2026-08-20
 
 ### Changed
