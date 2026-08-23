@@ -68,6 +68,16 @@ const ENCODED_CASES: &[(&str, &[u8], Expect)] = &[
         TOO_LARGE,
     ),
     (
+        "certificate_claim_match",
+        include_bytes!("../corpus/encoded_envelope/certificate_claim_match"),
+        OPENS,
+    ),
+    (
+        "certificate_claim_mismatch",
+        include_bytes!("../corpus/encoded_envelope/certificate_claim_mismatch"),
+        ADAPTER_REJECTED,
+    ),
+    (
         "cryptographic_mutation_cipher",
         include_bytes!("../corpus/encoded_envelope/cryptographic_mutation_cipher"),
         BAD_ENVELOPE,
@@ -201,6 +211,16 @@ const AEAD_CASES: &[(&str, &[u8], Expect)] = &[
         TOO_LARGE,
     ),
     (
+        "certificate_claim_match",
+        include_bytes!("../corpus/aead_envelope/certificate_claim_match"),
+        OPENS,
+    ),
+    (
+        "certificate_claim_mismatch",
+        include_bytes!("../corpus/aead_envelope/certificate_claim_mismatch"),
+        ADAPTER_REJECTED,
+    ),
+    (
         "cryptographic_mutation_cipher",
         include_bytes!("../corpus/aead_envelope/cryptographic_mutation_cipher"),
         BAD_ENVELOPE,
@@ -293,6 +313,16 @@ const CCM_CASES: &[(&str, &[u8], Expect)] = &[
         "cipher_limit_plus_one",
         include_bytes!("../corpus/aead_ccm_envelope/cipher_limit_plus_one"),
         TOO_LARGE,
+    ),
+    (
+        "certificate_claim_match",
+        include_bytes!("../corpus/aead_ccm_envelope/certificate_claim_match"),
+        OPENS,
+    ),
+    (
+        "certificate_claim_mismatch",
+        include_bytes!("../corpus/aead_ccm_envelope/certificate_claim_mismatch"),
+        ADAPTER_REJECTED,
     ),
     (
         "cryptographic_mutation_cipher",
@@ -916,20 +946,8 @@ fn curated_generic_typed_seeds_reach_named_construction_outcomes() {
 
 #[test]
 fn curated_aead_seeds_open_or_reject_as_their_contract_requires() {
-    let open_with = |seed: &[u8]| {
-        let (signature, wrapped_key, cipher) = support::aead_encoded_values(seed);
-        support::aead_client().open_response(ResponseParts::new(
-            [
-                ("X-Fuzz-Response-Signature", signature),
-                ("X-Fuzz-Response-Wrapped-Key", wrapped_key),
-                (
-                    "X-Fuzz-Response-Remote-Signing-Certificate",
-                    "fuzz-certificate".to_owned(),
-                ),
-            ],
-            cipher,
-        ))
-    };
+    let open_with =
+        |seed: &[u8]| support::aead_client().open_response(support::aead_response_parts(seed));
 
     for (name, seed, expect) in AEAD_CASES {
         assert_contract(name, *expect, open_with(seed));
@@ -938,20 +956,8 @@ fn curated_aead_seeds_open_or_reject_as_their_contract_requires() {
 
 #[test]
 fn curated_aead_ccm_seeds_open_or_reject_as_their_contract_requires() {
-    let open_with = |seed: &[u8]| {
-        let (signature, wrapped_key, cipher) = support::ccm_encoded_values(seed);
-        support::ccm_client().open_response(ResponseParts::new(
-            [
-                ("X-Fuzz-Response-Signature", signature),
-                ("X-Fuzz-Response-Wrapped-Key", wrapped_key),
-                (
-                    "X-Fuzz-Response-Remote-Signing-Certificate",
-                    "fuzz-certificate".to_owned(),
-                ),
-            ],
-            cipher,
-        ))
-    };
+    let open_with =
+        |seed: &[u8]| support::ccm_client().open_response(support::ccm_response_parts(seed));
 
     for (name, seed, expect) in CCM_CASES {
         assert_contract(name, *expect, open_with(seed));
@@ -1489,6 +1495,49 @@ fn curated_encoded_seeds_open_or_reject_as_their_contract_requires() {
 }
 
 #[test]
+fn curated_certificate_claim_mismatch_is_protocol_adapter_before_crypto() {
+    // The mismatch seeds keep the three envelope fields on the valid path
+    // (`vvv` + empty bodies) and only change the fourth-field certificate
+    // claim. If this ever fails as InvalidEnvelope, the seed is probing crypto
+    // rather than the pre-crypto certificate check.
+    let encoded = include_bytes!("../corpus/encoded_envelope/certificate_claim_mismatch");
+    let aead = include_bytes!("../corpus/aead_envelope/certificate_claim_mismatch");
+    let ccm = include_bytes!("../corpus/aead_ccm_envelope/certificate_claim_mismatch");
+    for (name, seed) in [
+        (
+            "encoded_envelope/certificate_claim_mismatch",
+            encoded.as_slice(),
+        ),
+        ("aead_envelope/certificate_claim_mismatch", aead.as_slice()),
+        (
+            "aead_ccm_envelope/certificate_claim_mismatch",
+            ccm.as_slice(),
+        ),
+    ] {
+        assert_eq!(
+            support::encoded_certificate_claim(seed),
+            "different-certificate",
+            "{name}"
+        );
+    }
+    assert_contract(
+        "encoded_envelope/certificate_claim_mismatch",
+        ADAPTER_REJECTED,
+        open_encoded(encoded),
+    );
+    assert_contract(
+        "aead_envelope/certificate_claim_mismatch",
+        ADAPTER_REJECTED,
+        support::aead_client().open_response(support::aead_response_parts(aead)),
+    );
+    assert_contract(
+        "aead_ccm_envelope/certificate_claim_mismatch",
+        ADAPTER_REJECTED,
+        support::ccm_client().open_response(support::ccm_response_parts(ccm)),
+    );
+}
+
+#[test]
 fn curated_mutation_seeds_change_only_the_named_cryptographic_field() {
     let valid = support::valid_envelope();
     let expected = [&valid.signature, &valid.wrapped_session_key, &valid.cipher];
@@ -1583,16 +1632,5 @@ fn request_names(parts: &RequestParts) -> Vec<String> {
 }
 
 fn open_encoded(seed: &[u8]) -> gmcrypto_envelope_lite::Result<Vec<u8>> {
-    let (signature, wrapped_key, cipher) = support::encoded_values(seed);
-    support::client().open_response(ResponseParts::new(
-        [
-            ("X-Fuzz-Response-Signature", signature),
-            ("X-Fuzz-Response-Wrapped-Key", wrapped_key),
-            (
-                "X-Fuzz-Response-Remote-Signing-Certificate",
-                "fuzz-certificate".to_owned(),
-            ),
-        ],
-        cipher,
-    ))
+    support::client().open_response(support::encoded_response_parts(seed))
 }

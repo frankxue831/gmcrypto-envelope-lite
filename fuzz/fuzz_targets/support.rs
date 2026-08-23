@@ -21,6 +21,7 @@ pub const AEAD_CIPHER_LIMIT: usize =
 pub const PADDED_CIPHER_BYTES: usize = (MAX_PLAINTEXT_BYTES / 16 + 1) * 16;
 pub const CIPHER_LIMIT: usize = PADDED_CIPHER_BYTES.div_ceil(3) * 4;
 pub const VALID_PLAINTEXT: &[u8] = b"fuzz envelope";
+pub const EXPECTED_REMOTE_SIGNING_CERTIFICATE: &str = "fuzz-certificate";
 pub const CONTEXT_DOMAIN_SEPARATOR: &[u8] = b"fuzz/domain-separator/v1";
 pub const DEFAULT_PROTOCOL_CONTEXT: &[u8] = b"operation=fuzz";
 
@@ -577,8 +578,8 @@ pub fn client() -> &'static SecureClient {
         let config = ClientConfig::builder()
             .local_identity_id("fuzz-identity")
             .api_version("fuzz-v1")
-            .local_certificate_id("fuzz-certificate")
-            .expected_remote_signing_certificate_id("fuzz-certificate")
+            .local_certificate_id(EXPECTED_REMOTE_SIGNING_CERTIFICATE)
+            .expected_remote_signing_certificate_id(EXPECTED_REMOTE_SIGNING_CERTIFICATE)
             .remote_encryption_certificate_id("fuzz-encryption-certificate")
             .local_signer_id(b"fuzz-signer")
             .expected_remote_signer_id(b"fuzz-signer")
@@ -638,6 +639,44 @@ pub fn encoded_values(data: &[u8]) -> (String, String, String) {
     )
 }
 
+pub fn encoded_certificate_claim(data: &[u8]) -> String {
+    let claim = framed::<4>(data)[3];
+    if claim.is_empty() {
+        EXPECTED_REMOTE_SIGNING_CERTIFICATE.to_owned()
+    } else {
+        text(claim)
+    }
+}
+
+pub fn encoded_response_parts(data: &[u8]) -> ResponseParts {
+    envelope_response_parts(encoded_values(data), data)
+}
+
+pub fn aead_response_parts(data: &[u8]) -> ResponseParts {
+    envelope_response_parts(aead_encoded_values(data), data)
+}
+
+pub fn ccm_response_parts(data: &[u8]) -> ResponseParts {
+    envelope_response_parts(ccm_encoded_values(data), data)
+}
+
+fn envelope_response_parts(
+    (signature, wrapped_key, cipher): (String, String, String),
+    data: &[u8],
+) -> ResponseParts {
+    ResponseParts::new(
+        [
+            ("X-Fuzz-Response-Signature", signature),
+            ("X-Fuzz-Response-Wrapped-Key", wrapped_key),
+            (
+                "X-Fuzz-Response-Remote-Signing-Certificate",
+                encoded_certificate_claim(data),
+            ),
+        ],
+        cipher,
+    )
+}
+
 fn select_value(
     mode: Option<&u8>,
     boundary: Option<&u8>,
@@ -684,8 +723,8 @@ pub fn context_client() -> &'static SecureClient {
         let config = ClientConfig::builder()
             .local_identity_id("fuzz-identity")
             .api_version("fuzz-v1")
-            .local_certificate_id("fuzz-certificate")
-            .expected_remote_signing_certificate_id("fuzz-certificate")
+            .local_certificate_id(EXPECTED_REMOTE_SIGNING_CERTIFICATE)
+            .expected_remote_signing_certificate_id(EXPECTED_REMOTE_SIGNING_CERTIFICATE)
             .remote_encryption_certificate_id("fuzz-encryption-certificate")
             .local_signer_id(b"fuzz-signer")
             .expected_remote_signer_id(b"fuzz-signer")
@@ -787,8 +826,8 @@ fn aead_client_with(algorithm: gmcrypto_envelope_lite::AeadAlgorithm) -> SecureC
     let config = ClientConfig::builder()
         .local_identity_id("fuzz-identity")
         .api_version("fuzz-v1")
-        .local_certificate_id("fuzz-certificate")
-        .expected_remote_signing_certificate_id("fuzz-certificate")
+        .local_certificate_id(EXPECTED_REMOTE_SIGNING_CERTIFICATE)
+        .expected_remote_signing_certificate_id(EXPECTED_REMOTE_SIGNING_CERTIFICATE)
         .remote_encryption_certificate_id("fuzz-encryption-certificate")
         .local_signer_id(b"fuzz-signer")
         .expected_remote_signer_id(b"fuzz-signer")
