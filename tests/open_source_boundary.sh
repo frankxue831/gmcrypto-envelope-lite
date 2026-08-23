@@ -214,6 +214,12 @@ mkdir -p "$root/src/.git"
 printf '/%s/alice/project\n' 'home' >"$root/src/.git/path.txt"
 expect_reject "complete export nested git directory" "$root" env
 
+# Complete mode prunes nothing, so the gitlink file that worktree mode now
+# skips must still be a finding here: an export has no reason to carry one.
+root=$(new_export complete-nested-git-file)
+printf 'gitdir: /%s/alice/project/.git/worktrees/topic\n' 'home' >"$root/src/.git"
+expect_reject "complete export nested git metadata file" "$root" env
+
 root=$(new_export worktree-root-exclusions)
 mkdir -p "$root/.git/objects" "$root/target/debug"
 if [ "$symlink_fixtures" -eq 1 ]; then
@@ -257,6 +263,38 @@ root=$(new_export worktree-nested-git)
 mkdir -p "$root/src/.git"
 printf '/%s/alice/project\n' 'home' >"$root/src/.git/path.txt"
 expect_worktree_reject "worktree nested git directory" "$root"
+
+# The nested reject above is about a `.git` *directory* — an embedded
+# repository. A nested `.git` *regular file* is a git worktree's gitlink, whose
+# absolute path is plumbing rather than disclosure, and is accepted on the same
+# reasoning as the root `worktree metadata file` case above. The pair is what
+# makes the prune non-vacuous: drop `-type f` from the scanner and the
+# directory case above starts passing; drop the clause entirely and this one
+# starts failing.
+root=$(new_export worktree-nested-git-file)
+printf 'gitdir: /%s/alice/project/.git/worktrees/topic\n' 'home' >"$root/src/.git"
+expect_worktree_accept "worktree nested git metadata file" "$root"
+
+# Depth is not what makes a gitlink acceptable, so a deeper one behaves the
+# same. This is the shape a real `.worktrees/<branch>/.git` takes.
+root=$(new_export worktree-deep-git-file)
+mkdir -p "$root/.worktrees/topic"
+printf 'gitdir: /%s/alice/project/.git/worktrees/topic\n' 'home' >"$root/.worktrees/topic/.git"
+printf '%s\n' 'neutral public source' >"$root/.worktrees/topic/lib.rs"
+expect_worktree_accept "worktree checkout gitlink" "$root"
+
+# But the checkout's own content is still scanned — `.worktrees` is branch
+# source, not build output, and charter section 5 is explicit that untracked
+# files are not a secrecy boundary.
+printf '/%s/alice/project\n' 'home' >"$root/.worktrees/topic/leak.txt"
+expect_worktree_reject "worktree checkout content is scanned" "$root"
+
+# A `.git` symlink is not plumbing we can vouch for, at any depth.
+if [ "$symlink_fixtures" -eq 1 ]; then
+    root=$(new_export worktree-nested-git-symlink)
+    ln -s "$outside" "$root/src/.git"
+    expect_worktree_reject "worktree nested git symlink" "$root"
+fi
 
 for literal_root_name in 'worktree-root-*' 'worktree-root-?' 'worktree-root-['; do
     root=$(new_export "$literal_root_name")
