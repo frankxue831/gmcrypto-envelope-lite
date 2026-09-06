@@ -103,9 +103,9 @@ dependencies = [
 
 [[package]]
 name = "gmcrypto-core"
-version = "1.11.2"
+version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b9f850ddf82a1280dfbc8b9ea13768c1dd2fdb97826d4302712c30ae121f7ef"
+checksum = "7229c25ab33a6ab2e8134ff692a7cd685b9be93613016e533389dd2f87bccdd4"
 dependencies = [
  "crypto-bigint",
  "gmcrypto-simd",
@@ -140,9 +140,9 @@ dependencies = [
 
 [[package]]
 name = "gmcrypto-simd"
-version = "1.11.2"
+version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f658352db11f640e56b5635aa44c5000a69e2dbd958cf3bd127f44b6960b22a"
+checksum = "4b83208665be07dcb272e96b42bfc37dab5ec64918a416a44c295d4bc6742c15"
 dependencies = [
  "cpufeatures",
 ]
