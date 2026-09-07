@@ -285,7 +285,8 @@ impl ClientConfigBuilder {
         self
     }
 
-    /// Sets the envelope mode; the default is the compatibility SM4-CBC mode.
+    /// Sets the envelope mode. Required when the `aead` feature is enabled; there is no
+    /// silent CBC default.
     #[cfg(feature = "aead")]
     #[must_use]
     pub fn envelope_mode(mut self, value: EnvelopeMode) -> Self {
@@ -331,7 +332,9 @@ impl ClientConfigBuilder {
         let expected_remote_signer_id =
             required_signer_id(self.expected_remote_signer_id, "expected_remote_signer_id")?;
         #[cfg(feature = "aead")]
-        let envelope_mode = self.envelope_mode.unwrap_or(EnvelopeMode::LegacyCbc);
+        let envelope_mode = self.envelope_mode.ok_or(Error::Configuration {
+            field: "envelope_mode",
+        })?;
         #[cfg(feature = "aead")]
         let iv = match envelope_mode {
             EnvelopeMode::LegacyCbc => self.iv.ok_or(Error::Configuration { field: "iv" })?,
@@ -433,15 +436,33 @@ mod tests {
     }
 
     #[test]
-    fn envelope_mode_defaults_to_legacy_cbc_and_still_requires_an_iv() {
-        let config = base_builder()
+    fn envelope_mode_is_required_when_aead_is_enabled() {
+        let error = base_builder()
             .iv(*b"0123456789abcdef")
             .build()
-            .expect("legacy configuration");
-        assert_eq!(config.envelope_mode(), EnvelopeMode::LegacyCbc);
+            .expect_err("aead builds require envelope_mode");
+        assert!(matches!(
+            error,
+            Error::Configuration {
+                field: "envelope_mode"
+            }
+        ));
+    }
 
-        let missing_iv = base_builder().build().expect_err("legacy mode without IV");
+    #[test]
+    fn legacy_cbc_still_requires_an_iv() {
+        let missing_iv = base_builder()
+            .envelope_mode(EnvelopeMode::LegacyCbc)
+            .build()
+            .expect_err("legacy mode without IV");
         assert!(matches!(missing_iv, Error::Configuration { field: "iv" }));
+
+        let config = base_builder()
+            .envelope_mode(EnvelopeMode::LegacyCbc)
+            .iv(*b"0123456789abcdef")
+            .build()
+            .expect("explicit CBC configuration");
+        assert_eq!(config.envelope_mode(), EnvelopeMode::LegacyCbc);
     }
 
     #[test]

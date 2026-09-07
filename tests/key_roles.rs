@@ -28,11 +28,48 @@ fn four_independent_key_slots_are_accepted() {
             .expect("local decryption key"),
         PublicKey::from_der(&verification.public_der).expect("remote verification key"),
         PublicKey::from_der(&encryption.public_der).expect("remote encryption key"),
-    );
+    )
+    .expect("independent key roles");
 
     assert!(!keys.uses_shared_roles());
     assert_eq!(keys.remote_verification_source(), PeerKeySource::Spki);
     assert_eq!(keys.remote_encryption_source(), PeerKeySource::Spki);
+}
+
+#[test]
+fn new_rejects_byte_identical_local_roles() {
+    let local = test_key_pair(30);
+    let verification = test_key_pair(31);
+    let encryption = test_key_pair(32);
+
+    let error = match KeyMaterial::new(
+        load_private(&local),
+        load_private(&local),
+        load_public(&verification),
+        load_public(&encryption),
+    ) {
+        Ok(_) => panic!("identical local roles require shared constructors"),
+        Err(error) => error,
+    };
+    assert!(matches!(error, Error::Configuration { field: "key_roles" }));
+}
+
+#[test]
+fn new_rejects_byte_identical_remote_roles() {
+    let signing = test_key_pair(33);
+    let decryption = test_key_pair(34);
+    let remote = test_key_pair(35);
+
+    let error = match KeyMaterial::new(
+        load_private(&signing),
+        load_private(&decryption),
+        load_public(&remote),
+        load_public(&remote),
+    ) {
+        Ok(_) => panic!("identical remote roles require shared constructors"),
+        Err(error) => error,
+    };
+    assert!(matches!(error, Error::Configuration { field: "key_roles" }));
 }
 
 #[test]
@@ -50,7 +87,8 @@ fn directional_roles_drive_two_party_cryptography() {
             load_private(&alice_decryption),
             load_public(&bob_signing),
             load_public(&bob_decryption),
-        ),
+        )
+        .expect("Alice directional roles"),
     );
     let bob = client(
         b"bob-signer",
@@ -60,7 +98,8 @@ fn directional_roles_drive_two_party_cryptography() {
             load_private(&bob_decryption),
             load_public(&alice_signing),
             load_public(&alice_decryption),
-        ),
+        )
+        .expect("Bob directional roles"),
     );
 
     let alice_message = b"signed by Alice and encrypted for Bob";
@@ -285,7 +324,8 @@ fn public_source_getters_report_each_runtime_remote_role() {
             .expect("local decryption key"),
         PublicKey::from_der(&verification.public_der).expect("remote verification key"),
         PublicKey::from_der(&encryption.public_der).expect("remote encryption key"),
-    );
+    )
+    .expect("independent key roles");
 
     assert_eq!(keys.remote_verification_source(), PeerKeySource::Spki);
     assert_eq!(keys.remote_encryption_source(), PeerKeySource::Spki);
@@ -352,12 +392,14 @@ fn client(local_signer_id: &[u8], remote_signer_id: &[u8], keys: KeyMaterial) ->
         .local_signer_id(local_signer_id)
         .expected_remote_signer_id(remote_signer_id)
         .authentication_mode(AuthenticationMode::LegacyPlaintext)
-        .iv(*b"0123456789abcdef")
-        .build()
-        .expect("test configuration");
+        .iv(*b"0123456789abcdef");
+    #[cfg(feature = "aead")]
+    let config = config.envelope_mode(gmcrypto_envelope_lite::EnvelopeMode::LegacyCbc);
+    let config = config.build().expect("test configuration");
     SecureClient::new(
         config,
         keys,
         Arc::new(HeaderProtocolAdapter::new(neutral_header_schema())),
     )
+    .expect("legacy header adapter matches LegacyPlaintext")
 }

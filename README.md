@@ -23,7 +23,7 @@ The four key roles are explicit:
 - remote verification public key;
 - remote encryption public key.
 
-`KeyMaterial::new` accepts all four roles. `KeyMaterial::shared` deliberately reuses one local key for signing and decryption and one remote key for verification and encryption; use that convenience only when the protocol explicitly assigns shared roles. The equally explicit `shared_from_pem`, `shared_from_der`, and `shared_from_files` conveniences load that shared-role arrangement. Role-specific protocols should use the loaders on `PrivateKey` and `PublicKey`, then call `KeyMaterial::new`.
+`KeyMaterial::new` accepts all four roles and rejects byte-identical local private keys or byte-identical remote public keys. `KeyMaterial::shared` deliberately reuses one local key for signing and decryption and one remote key for verification and encryption; use that convenience only when the protocol explicitly assigns shared roles. The equally explicit `shared_from_pem`, `shared_from_der`, and `shared_from_files` conveniences load that shared-role arrangement. Role-specific protocols should use the loaders on `PrivateKey` and `PublicKey`, then call `KeyMaterial::new`.
 
 A `ProtocolAdapter` maps only identity metadata, per-request protocol context, and opaque envelope fields. It cannot access plaintext, private or public key objects, or caller-supplied custom headers. Custom headers are appended after adapter output, and a case-insensitive collision is rejected rather than overriding an emitted header.
 
@@ -49,7 +49,7 @@ Because the legacy wire signature covers plaintext, opening a legacy envelope ne
 
 The envelope mode and AEAD algorithm are pinned by `ClientConfig` and never inferred from incoming bytes: there is no negotiation and no fallback, and a client rejects envelopes of another mode or algorithm outright. `AuthenticationMode` (what the SM2 signature covers) is an independent axis and composes with every mode.
 
-| | `EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm)` — feature `aead` (recommended AEAD) | `EnvelopeMode::Aead(AeadAlgorithm::Sm4Ccm)` — feature `aead` | `EnvelopeMode::LegacyCbc` — default |
+| | `EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm)` — feature `aead` (recommended AEAD) | `EnvelopeMode::Aead(AeadAlgorithm::Sm4Ccm)` — feature `aead` | `EnvelopeMode::LegacyCbc` — compatibility |
 | --- | --- | --- | --- |
 | Payload cipher | SM4-GCM with a fresh random 12-byte nonce and a full 16-byte tag per envelope; frame id `0x01` | SM4-CCM with a fresh random 12-byte nonce and a full 16-byte tag per envelope; frame id `0x02`; plaintext limit defaults to `SM4_CCM_DEFAULT_MAX_PLAINTEXT_BYTES` (64 KiB) and may be raised explicitly to the ceiling `SM4_CCM_MAX_PLAINTEXT_BYTES` (`2^24 - 1`) | SM4-CBC with the configured fixed IV |
 | Ciphertext integrity | AEAD tag, verified before any plaintext is produced | AEAD tag; CCM decrypts CTR plaintext before verifying CBC-MAC, then wipes its tentative plaintext on tag failure (other primitive-internal copies are not wiped — see `SECURITY_MODEL.md`) | none from the cipher; only the SM2 signature, after decryption |
@@ -57,7 +57,7 @@ The envelope mode and AEAD algorithm are pinned by `ClientConfig` and never infe
 | Replay protection | none — application concern | none — application concern | none — application concern |
 | Intended use | new integrations | peers that require CCM on the wire | existing deployed wires, supported indefinitely |
 
-The SM2 signature remains mandatory under AEAD: the session key is encrypted to a public key, so the tag alone proves nothing about who sealed the envelope. An AEAD configuration must not set `iv`:
+The SM2 signature remains mandatory under AEAD: the session key is encrypted to a public key, so the tag alone proves nothing about who sealed the envelope. When feature `aead` is enabled, `envelope_mode` is required; omitting it is `Error::Configuration` rather than a silent CBC default. Without the feature, CBC is the only envelope. An AEAD configuration must not set `iv`:
 
 ```no_run
 # #[cfg(feature = "aead")] {
@@ -170,7 +170,7 @@ fn client(key_password: &[u8]) -> Result<SecureClient, Box<dyn std::error::Error
         PrivateKey::from_encrypted_file("example-local-decryption.pem", key_password)?,
         PublicKey::from_file("example-remote-verification.pem")?,
         PublicKey::from_file("example-remote-encryption.pem")?,
-    );
+    )?;
     let config = ClientConfig::builder()
         .local_identity_id("demo-client")
         .api_version("example-v1")
@@ -188,7 +188,7 @@ fn client(key_password: &[u8]) -> Result<SecureClient, Box<dyn std::error::Error
         config,
         keys,
         Arc::new(ExampleContextAdapter),
-    ))
+    )?)
 }
 # let key_password = std::env::var("SECURE_ENVELOPE_KEY_PASSWORD").expect("example password");
 # let _client = client(key_password.as_bytes()).expect("example client");
@@ -199,7 +199,7 @@ The domain separator is fixed in configuration and versioned like a wire format;
 
 ### Compatibility mode: an existing CBC wire
 
-An already-deployed fixed-IV CBC wire remains supported indefinitely; configure it explicitly as the compatibility mode it is. For header-mapped wires, `.context_bound_authentication()` with `AuthenticationMode::ContextBound` is the convenience when both ends use the crate-owned version-1 binary context. The schema below uses the explicit `.legacy_authentication()` acknowledgement because the compatibility mode signs plaintext only.
+An already-deployed fixed-IV CBC wire remains supported indefinitely; configure it explicitly as the compatibility mode it is. When feature `aead` is enabled, the builder must call `.envelope_mode(EnvelopeMode::LegacyCbc)` before `.build()` — there is no silent CBC default. For header-mapped wires, `.context_bound_authentication()` with `AuthenticationMode::ContextBound` is the convenience when both ends use the crate-owned version-1 binary context. The schema below uses the explicit `.legacy_authentication()` acknowledgement because the compatibility mode signs plaintext only.
 
 ```no_run
 use std::sync::Arc;
@@ -215,8 +215,8 @@ fn client(key_password: &[u8]) -> Result<SecureClient, Box<dyn std::error::Error
         PrivateKey::from_encrypted_file("example-local-decryption.pem", key_password)?,
         PublicKey::from_file("example-remote-verification.pem")?,
         PublicKey::from_file("example-remote-encryption.pem")?,
-    );
-    let config = ClientConfig::builder()
+    )?;
+    let builder = ClientConfig::builder()
         .local_identity_id("demo-client")
         .api_version("example-v1")
         .local_certificate_id("example-local-signing-certificate")
@@ -226,8 +226,10 @@ fn client(key_password: &[u8]) -> Result<SecureClient, Box<dyn std::error::Error
         .expected_remote_signer_id(b"demo-remote-signer")
         .authentication_mode(AuthenticationMode::LegacyPlaintext)
         // A fixed IV is shown only for legacy wire compatibility.
-        .iv(*b"example-iv-00001")
-        .build()?;
+        .iv(*b"example-iv-00001");
+#    #[cfg(feature = "aead")]
+#    let builder = builder.envelope_mode(gmcrypto_envelope_lite::EnvelopeMode::LegacyCbc);
+    let config = builder.build()?;
     let schema = HeaderSchema::builder()
         .static_request_header("Content-Type", "application/example-envelope")
         .local_identity_header("X-Envelope-Local-Identity")
@@ -254,7 +256,7 @@ fn client(key_password: &[u8]) -> Result<SecureClient, Box<dyn std::error::Error
         config,
         keys,
         Arc::new(HeaderProtocolAdapter::new(schema)),
-    ))
+    )?)
 }
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let key_password = std::env::var("SECURE_ENVELOPE_KEY_PASSWORD")?;

@@ -5,8 +5,8 @@ mod support;
 use std::sync::Arc;
 
 use gmcrypto_envelope_lite::{
-    AuthenticationMode, ClientConfig, HeaderProtocolAdapter, HeaderSchema, KeyMaterial,
-    RequestContext, RequestParts, ResponseParts, SecureClient,
+    AdapterAuthentication, AuthenticationMode, ClientConfig, HeaderProtocolAdapter, HeaderSchema,
+    KeyMaterial, RequestContext, RequestParts, ResponseParts, SecureClient,
 };
 
 use support::legacy_client_parts;
@@ -17,7 +17,8 @@ fn root_api_builds_and_opens_a_verified_legacy_envelope() {
     assert_public_types_are_available();
 
     let (config, keys, schema) = legacy_client_parts();
-    let client = SecureClient::new(config, keys, Arc::new(HeaderProtocolAdapter::new(schema)));
+    let client = SecureClient::new(config, keys, Arc::new(HeaderProtocolAdapter::new(schema)))
+        .expect("legacy header adapter matches LegacyPlaintext");
     let request = client
         .build_request(
             b"public API payload",
@@ -43,6 +44,7 @@ fn assert_public_types_are_available() {
     let _ = std::any::TypeId::of::<RequestContext>();
     let _ = std::any::TypeId::of::<RequestParts>();
     let _ = std::any::TypeId::of::<ResponseParts>();
+    let _ = std::any::TypeId::of::<AdapterAuthentication>();
     let _ = std::any::TypeId::of::<HeaderProtocolAdapter>();
     let _ = std::any::TypeId::of::<HeaderSchema>();
     let _ = std::any::TypeId::of::<KeyMaterial>();

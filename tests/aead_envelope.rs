@@ -78,10 +78,12 @@ fn aead_client_with(algorithm: AeadAlgorithm) -> SecureClient {
         key_material(),
         Arc::new(HeaderProtocolAdapter::new(schema())),
     )
+    .expect("legacy header adapter matches LegacyPlaintext")
 }
 
 fn cbc_client() -> SecureClient {
     let config = base_builder()
+        .envelope_mode(EnvelopeMode::LegacyCbc)
         .iv(*b"0123456789abcdef")
         .build()
         .expect("CBC configuration");
@@ -90,6 +92,7 @@ fn cbc_client() -> SecureClient {
         key_material(),
         Arc::new(HeaderProtocolAdapter::new(schema())),
     )
+    .expect("legacy header adapter matches LegacyPlaintext")
 }
 
 #[test]

@@ -7,8 +7,8 @@ use zeroize::Zeroizing;
 use crate::message::{RequestContext, RequestParts, ResponseParts, SecureEnvelope};
 use crate::request::serialize_json;
 use crate::{
-    AuthenticationContext, ClientConfig, Error, KeyMaterial, ProtocolAdapter, RequestBuilder,
-    Result, envelope_crypto,
+    AdapterAuthentication, AuthenticationContext, AuthenticationMode, ClientConfig, Error,
+    KeyMaterial, ProtocolAdapter, RequestBuilder, Result, envelope_crypto,
 };
 
 /// Immutable orchestration facade for transport-neutral secure envelopes.
@@ -20,13 +20,27 @@ pub struct SecureClient {
 
 impl SecureClient {
     /// Creates a client from validated configuration, owned keys, and a protocol adapter.
-    #[must_use]
-    pub fn new(config: ClientConfig, keys: KeyMaterial, adapter: Arc<dyn ProtocolAdapter>) -> Self {
-        Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::AuthenticationContext`] when the adapter pins an authentication
+    /// kind that does not match [`ClientConfig::authentication_mode`]. Custom adapters
+    /// that do not pin a kind are accepted and checked later during seal or open.
+    pub fn new(
+        config: ClientConfig,
+        keys: KeyMaterial,
+        adapter: Arc<dyn ProtocolAdapter>,
+    ) -> Result<Self> {
+        if let Some(pinned) = adapter.pinned_authentication() {
+            if !authentication_matches_pin(config.authentication_mode(), pinned) {
+                return Err(Error::AuthenticationContext);
+            }
+        }
+        Ok(Self {
             config,
             keys,
             adapter,
-        }
+        })
     }
 
     /// Returns the immutable client-lifetime configuration.
@@ -114,6 +128,19 @@ impl SecureClient {
     }
 }
 
+fn authentication_matches_pin(mode: &AuthenticationMode, pinned: AdapterAuthentication) -> bool {
+    matches!(
+        (mode, pinned),
+        (
+            AuthenticationMode::LegacyPlaintext,
+            AdapterAuthentication::LegacyPlaintext
+        ) | (
+            AuthenticationMode::ContextBound { .. },
+            AdapterAuthentication::ContextBound
+        )
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use gmcrypto_core::sm2::Sm2PrivateKey;
@@ -162,11 +189,13 @@ mod tests {
             .local_signer_id(b"signer".to_vec())
             .expected_remote_signer_id(b"signer".to_vec())
             .authentication_mode(crate::AuthenticationMode::LegacyPlaintext)
-            .iv(*b"0123456789abcdef")
-            .build()
-            .expect("configuration");
+            .iv(*b"0123456789abcdef");
+        #[cfg(feature = "aead")]
+        let config = config.envelope_mode(crate::EnvelopeMode::LegacyCbc);
+        let config = config.build().expect("configuration");
         let keys = test_key_material();
-        let client = SecureClient::new(config, keys, Arc::new(FaultyAdapter));
+        let client = SecureClient::new(config, keys, Arc::new(FaultyAdapter))
+            .expect("custom adapters do not pin a kind");
         let context = RequestContext::builder("operation")
             .metadata(RequestMetadata::new("request", "time").expect("metadata"))
             .build()
@@ -185,11 +214,9 @@ mod tests {
         let encrypted = pkcs8::encrypt(&private, password, &[1_u8; 16], 1, &[2_u8; 16])
             .expect("encrypted test key");
         let public = spki::encode(&private.public_key());
-        KeyMaterial::new(
-            crate::PrivateKey::from_encrypted_der(&encrypted, password).expect("signing key"),
-            crate::PrivateKey::from_encrypted_der(&encrypted, password).expect("decryption key"),
-            crate::PublicKey::from_der(&public).expect("verification key"),
-            crate::PublicKey::from_der(&public).expect("encryption key"),
+        KeyMaterial::shared(
+            crate::PrivateKey::from_encrypted_der(&encrypted, password).expect("local key"),
+            crate::PublicKey::from_der(&public).expect("remote key"),
         )
     }
 }

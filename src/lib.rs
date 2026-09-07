@@ -19,7 +19,8 @@ mod message;
 mod request;
 
 pub use adapter::{
-    CipherLocation, HeaderProtocolAdapter, HeaderSchema, HeaderSchemaBuilder, ProtocolAdapter,
+    AdapterAuthentication, CipherLocation, HeaderProtocolAdapter, HeaderSchema,
+    HeaderSchemaBuilder, ProtocolAdapter,
 };
 pub use auth::{AuthenticationContext, AuthenticationMode};
 pub use client::SecureClient;

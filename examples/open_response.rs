@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         PrivateKey::from_encrypted_file(local_decryption_path, password.as_bytes())?,
         PublicKey::from_file(remote_verification_path)?,
         PublicKey::from_file(remote_encryption_path)?,
-    );
+    )?;
     let client = example_client(keys)?;
     let document: ResponseDocument = serde_json::from_slice(&fs::read(response_path)?)?;
     let verified = client.open_response(ResponseParts::new(document.headers, document.body))?;
@@ -64,19 +64,17 @@ fn example_client(keys: KeyMaterial) -> gmcrypto_envelope_lite::Result<SecureCli
         )?)
         .envelope_mode(EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm))
         .build()?;
-    Ok(SecureClient::new(
-        config,
-        keys,
-        Arc::new(ExampleContextAdapter),
-    ))
+    SecureClient::new(config, keys, Arc::new(ExampleContextAdapter))
 }
 
 /// Wire mapping for the example's context-bound protocol.
 ///
-/// `HeaderProtocolAdapter` deliberately supports only legacy plaintext
-/// authentication, so a context-bound wire implements [`ProtocolAdapter`]
-/// directly. The adapter selects what each signature covers and how envelope
-/// fields travel; it never sees plaintext or key material.
+/// This example implements [`ProtocolAdapter`] so callers can see custom
+/// context derivation. `HeaderProtocolAdapter` can emit ContextBound
+/// authentication with the crate-owned version-1 binary layout when the
+/// schema calls `.context_bound_authentication()`. The adapter selects what
+/// each signature covers and how envelope fields travel; it never sees
+/// plaintext or key material.
 struct ExampleContextAdapter;
 
 impl ProtocolAdapter for ExampleContextAdapter {

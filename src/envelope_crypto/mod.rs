@@ -155,7 +155,7 @@ pub(crate) mod test_support {
         mode: AuthenticationMode,
         max_plaintext_bytes: usize,
     ) -> ClientConfig {
-        ClientConfig::builder()
+        let builder = ClientConfig::builder()
             .local_identity_id(format!("{name}-identity"))
             .api_version("test-v1")
             .local_certificate_id(format!("{name}-signing-certificate"))
@@ -165,9 +165,10 @@ pub(crate) mod test_support {
             .expected_remote_signer_id(expected_remote_signer_id)
             .authentication_mode(mode)
             .iv(IV)
-            .max_plaintext_bytes(max_plaintext_bytes)
-            .build()
-            .expect("valid test configuration")
+            .max_plaintext_bytes(max_plaintext_bytes);
+        #[cfg(feature = "aead")]
+        let builder = builder.envelope_mode(crate::EnvelopeMode::LegacyCbc);
+        builder.build().expect("valid test configuration")
     }
 
     pub(crate) fn key_material(
@@ -182,6 +183,7 @@ pub(crate) mod test_support {
             public_key(remote_verification),
             public_key(remote_encryption),
         )
+        .expect("independent test key roles")
     }
 
     fn private_key(scalar: u8) -> PrivateKey {

@@ -38,7 +38,7 @@ fn bound_header_schema() -> HeaderSchema {
 
 fn config_with_mode(base: &ClientConfig, mode: AuthenticationMode) -> ClientConfig {
     let identity = base.identity();
-    ClientConfig::builder()
+    let builder = ClientConfig::builder()
         .local_identity_id(identity.local_identity_id())
         .api_version(identity.api_version())
         .local_certificate_id(identity.local_certificate_id())
@@ -47,9 +47,10 @@ fn config_with_mode(base: &ClientConfig, mode: AuthenticationMode) -> ClientConf
         .local_signer_id(base.local_signer_id())
         .expected_remote_signer_id(base.expected_remote_signer_id())
         .authentication_mode(mode)
-        .iv(*base.iv())
-        .build()
-        .expect("config with swapped mode")
+        .iv(*base.iv());
+    #[cfg(feature = "aead")]
+    let builder = builder.envelope_mode(gmcrypto_envelope_lite::EnvelopeMode::LegacyCbc);
+    builder.build().expect("config with swapped mode")
 }
 
 fn request_context(operation: &str) -> RequestContext {
@@ -191,7 +192,8 @@ fn adapter_context_is_obtained_before_seal_and_adapter_inputs_are_semantic_only(
     let mode = AuthenticationMode::context_bound(b"demo-domain").expect("bound mode");
     let (config, keys, _) = client_parts_with_mode(6, mode);
     let adapter = Arc::new(ContextAdapter::default());
-    let client = SecureClient::new(config, keys, adapter.clone());
+    let client = SecureClient::new(config, keys, adapter.clone())
+        .expect("custom adapters do not pin a kind");
     let context = RequestContext::builder("operation-bound-context")
         .metadata(
             RequestMetadata::new("context-request", "2026-07-12-01.02.03.123456")
@@ -281,7 +283,8 @@ impl ProtocolAdapter for FailingAdapter {
 fn every_adapter_error_is_redacted_to_unit_protocol_adapter_error() {
     for failure in [FailurePoint::Authentication, FailurePoint::Build] {
         let (config, keys, _) = legacy_client_parts();
-        let client = SecureClient::new(config, keys, Arc::new(FailingAdapter(failure)));
+        let client = SecureClient::new(config, keys, Arc::new(FailingAdapter(failure)))
+            .expect("custom adapters do not pin a kind");
         assert!(matches!(
             client.build_request(b"secret", request_context("fail")),
             Err(Error::ProtocolAdapter)
@@ -289,7 +292,8 @@ fn every_adapter_error_is_redacted_to_unit_protocol_adapter_error() {
     }
 
     let (config, keys, _) = legacy_client_parts();
-    let client = SecureClient::new(config, keys, Arc::new(FailingAdapter(FailurePoint::Parse)));
+    let client = SecureClient::new(config, keys, Arc::new(FailingAdapter(FailurePoint::Parse)))
+        .expect("custom adapters do not pin a kind");
     assert!(matches!(
         client.open_response(ResponseParts::new(
             std::iter::empty::<(&str, &str)>(),
@@ -442,7 +446,8 @@ fn malformed_response_mapping_is_protocol_error_and_crypto_tampering_is_invalid_
 fn direct_seal_and_open_enforce_explicit_keys_modes_and_contexts() {
     let mode = AuthenticationMode::context_bound(b"direct-domain").expect("mode");
     let (config, keys, _) = client_parts_with_mode(10, mode);
-    let client = SecureClient::new(config, keys, Arc::new(ContextAdapter::default()));
+    let client = SecureClient::new(config, keys, Arc::new(ContextAdapter::default()))
+        .expect("custom adapters do not pin a kind");
     let correct = AuthenticationContext::context_bound(b"direct-context").expect("context");
     let envelope = client
         .seal(b"direct plaintext", &correct)
@@ -472,80 +477,44 @@ fn direct_seal_and_open_enforce_explicit_keys_modes_and_contexts() {
 }
 
 #[test]
-fn header_adapter_mode_mismatch_is_authentication_context_outbound_and_invalid_envelope_inbound() {
-    let (legacy_config, keys, _legacy_schema) = legacy_client_parts();
-    let certificate = legacy_config
-        .identity()
-        .expected_remote_signing_certificate_id()
-        .to_owned();
+fn header_adapter_context_bound_constructs_and_builds_requests() {
+    let mode = AuthenticationMode::context_bound(b"demo-domain").expect("domain");
+    let (config, keys, _) = client_parts_with_mode(12, mode);
+    let client = SecureClient::new(
+        config,
+        keys,
+        Arc::new(HeaderProtocolAdapter::new(bound_header_schema())),
+    )
+    .expect("context-bound schema matches ContextBound config regardless of domain");
+    let request = client
+        .build_request(b"payload", request_context("pay"))
+        .expect("context-bound request");
+    assert_eq!(request.header("X-Demo-Operation"), Some("pay"));
+    assert_eq!(request.header("X-Demo-Request-Id"), Some("request-pay"));
+}
 
-    let legacy_mode_bound_schema = SecureClient::new(
+#[test]
+fn header_adapter_mode_mismatch_is_rejected_at_construction() {
+    let (legacy_config, keys, _legacy_schema) = legacy_client_parts();
+    match SecureClient::new(
         legacy_config,
         keys,
         Arc::new(HeaderProtocolAdapter::new(bound_header_schema())),
-    );
-    assert!(matches!(
-        legacy_mode_bound_schema.build_request(b"payload", request_context("pay")),
-        Err(Error::AuthenticationContext)
-    ));
-    let sealed = legacy_mode_bound_schema
-        .seal(b"payload", &AuthenticationContext::legacy())
-        .expect("legacy seal");
-    assert!(matches!(
-        legacy_mode_bound_schema.open_response(ResponseParts::new(
-            [
-                ("X-Demo-Response-Signature", sealed.signature.clone(),),
-                (
-                    "X-Demo-Response-Wrapped-Key",
-                    sealed.wrapped_session_key.clone(),
-                ),
-                (
-                    "X-Demo-Response-Remote-Signing-Certificate",
-                    certificate.clone(),
-                ),
-                ("X-Demo-Request-Id", "request-pay".to_owned()),
-            ],
-            sealed.cipher.clone(),
-        )),
-        Err(Error::InvalidEnvelope)
-    ));
+    ) {
+        Ok(_) => panic!("legacy config with context-bound schema must fail at new"),
+        Err(error) => assert!(matches!(error, Error::AuthenticationContext)),
+    }
 
     let (legacy_config, keys, legacy_schema) = legacy_client_parts();
-    let certificate = legacy_config
-        .identity()
-        .expected_remote_signing_certificate_id()
-        .to_owned();
     let bound_mode = AuthenticationMode::context_bound(b"mismatch-domain").expect("domain");
-    let bound_mode_legacy_schema = SecureClient::new(
+    match SecureClient::new(
         config_with_mode(&legacy_config, bound_mode),
         keys,
         Arc::new(HeaderProtocolAdapter::new(legacy_schema)),
-    );
-    assert!(matches!(
-        bound_mode_legacy_schema.build_request(b"payload", request_context("pay")),
-        Err(Error::AuthenticationContext)
-    ));
-    let bound = AuthenticationContext::context_bound(b"explicit-bound").expect("context");
-    let bound_envelope = bound_mode_legacy_schema
-        .seal(b"payload", &bound)
-        .expect("bound seal");
-    assert!(matches!(
-        bound_mode_legacy_schema.open_response(ResponseParts::new(
-            [
-                (
-                    "X-Demo-Response-Signature",
-                    bound_envelope.signature.clone(),
-                ),
-                (
-                    "X-Demo-Response-Wrapped-Key",
-                    bound_envelope.wrapped_session_key.clone(),
-                ),
-                ("X-Demo-Response-Remote-Signing-Certificate", certificate,),
-            ],
-            bound_envelope.cipher.clone(),
-        )),
-        Err(Error::InvalidEnvelope)
-    ));
+    ) {
+        Ok(_) => panic!("context-bound config with legacy schema must fail at new"),
+        Err(error) => assert!(matches!(error, Error::AuthenticationContext)),
+    }
 }
 
 #[test]

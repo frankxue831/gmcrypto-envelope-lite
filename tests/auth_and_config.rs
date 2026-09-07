@@ -14,6 +14,8 @@ enum OmittedField {
     ExpectedRemoteSignerId,
     Iv,
     AuthenticationMode,
+    #[cfg(feature = "aead")]
+    EnvelopeMode,
     None,
 }
 
@@ -49,6 +51,10 @@ fn config_builder_omitting(omitted: OmittedField) -> ClientConfigBuilder {
     }
     if omitted != OmittedField::AuthenticationMode {
         builder = builder.authentication_mode(AuthenticationMode::LegacyPlaintext);
+    }
+    #[cfg(feature = "aead")]
+    if omitted != OmittedField::EnvelopeMode {
+        builder = builder.envelope_mode(gmcrypto_envelope_lite::EnvelopeMode::LegacyCbc);
     }
     builder
 }
@@ -168,6 +174,14 @@ fn config_requires_every_protocol_specific_value_explicitly() {
     for (omitted, expected_field) in cases {
         let error = config_builder_omitting(omitted).build().unwrap_err();
         assert_configuration_field(error, expected_field);
+    }
+
+    #[cfg(feature = "aead")]
+    {
+        let error = config_builder_omitting(OmittedField::EnvelopeMode)
+            .build()
+            .unwrap_err();
+        assert_configuration_field(error, "envelope_mode");
     }
 }
 

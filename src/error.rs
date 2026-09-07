@@ -85,8 +85,9 @@ pub enum Error {
     #[error("encryption failed")]
     Encryption,
 
-    /// An authentication context is empty, does not match the configured mode, or cannot form a
-    /// versioned transcript because of size.
+    /// An authentication context is empty, does not match the configured mode, cannot form a
+    /// versioned transcript because of size, or a pinned adapter kind disagrees with
+    /// [`crate::ClientConfig`] at [`crate::SecureClient::new`].
     #[error("authentication context is invalid for the configured mode")]
     AuthenticationContext,
 

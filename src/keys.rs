@@ -6,6 +6,7 @@ use gmcrypto_core::sm2::{Sm2PrivateKey, Sm2PublicKey};
 use gmcrypto_core::{pem, pkcs8, spki, x509};
 
 use crate::{Error, KeyKind, Result};
+use zeroize::Zeroizing;
 
 /// Identifies the public container from which a remote SM2 key was loaded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -192,14 +193,28 @@ pub struct KeyMaterial {
 impl KeyMaterial {
     /// Assigns independent keys to local signing, local decryption, remote verification, and
     /// remote encryption roles, in that order.
-    #[must_use]
+    ///
+    /// Byte-identical local private keys or byte-identical remote public keys are rejected.
+    /// Role reuse is available only through the explicit [`Self::shared`] constructors, which
+    /// reuse both the local pair and the remote pair. Mixed reuse (shared local roles with
+    /// distinct remote roles, or the reverse) has no constructor.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Configuration`] with field `key_roles` when the local pair or the
+    /// remote pair is byte-identical.
     pub fn new(
         local_signing: PrivateKey,
         local_decryption: PrivateKey,
         remote_verification: PublicKey,
         remote_encryption: PublicKey,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        if private_roles_overlap(&local_signing.inner, &local_decryption.inner)
+            || public_roles_overlap(&remote_verification.inner, &remote_encryption.inner)
+        {
+            return Err(Error::Configuration { field: "key_roles" });
+        }
+        Ok(Self {
             local_signing: local_signing.inner,
             local_decryption: local_decryption.inner,
             remote_verification: remote_verification.inner,
@@ -207,7 +222,7 @@ impl KeyMaterial {
             remote_verification_source: remote_verification.source,
             remote_encryption_source: remote_encryption.source,
             shared_roles: false,
-        }
+        })
     }
 
     /// Reuses one local private key for signing and decryption and one remote public key for
@@ -339,6 +354,17 @@ fn public_key_error() -> Error {
     Error::KeyMaterial {
         kind: KeyKind::PeerPublic,
     }
+}
+
+fn private_roles_overlap(left: &Sm2PrivateKey, right: &Sm2PrivateKey) -> bool {
+    let left_bytes = Zeroizing::new(left.to_bytes_be());
+    let right_bytes = Zeroizing::new(right.to_bytes_be());
+    left_bytes.as_slice() == right_bytes.as_slice()
+}
+
+fn public_roles_overlap(left: &Sm2PublicKey, right: &Sm2PublicKey) -> bool {
+    // SEC1 encoding panics only at the identity point, which public-key loaders reject.
+    left.to_sec1_uncompressed() == right.to_sec1_uncompressed()
 }
 
 fn is_pem(input: &[u8]) -> bool {
