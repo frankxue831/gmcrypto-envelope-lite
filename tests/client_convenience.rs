@@ -220,16 +220,22 @@ fn replacement_client_rotation_keeps_old_and_new_clients_isolated() {
         support::client_parts_with_mode(17, AuthenticationMode::LegacyPlaintext);
     let (_, replacement_keys, _) =
         support::client_parts_with_mode(27, AuthenticationMode::LegacyPlaintext);
-    let old = Arc::new(SecureClient::new(
-        config.clone(),
-        old_keys,
-        Arc::new(HeaderProtocolAdapter::new(schema.clone())),
-    ));
-    let replacement = Arc::new(SecureClient::new(
-        config.clone(),
-        replacement_keys,
-        Arc::new(HeaderProtocolAdapter::new(schema)),
-    ));
+    let old = Arc::new(
+        SecureClient::new(
+            config.clone(),
+            old_keys,
+            Arc::new(HeaderProtocolAdapter::new(schema.clone())),
+        )
+        .expect("legacy header adapter matches LegacyPlaintext"),
+    );
+    let replacement = Arc::new(
+        SecureClient::new(
+            config.clone(),
+            replacement_keys,
+            Arc::new(HeaderProtocolAdapter::new(schema)),
+        )
+        .expect("legacy header adapter matches LegacyPlaintext"),
+    );
     let context = AuthenticationContext::legacy();
     let old_envelope = old.seal(b"old", &context).unwrap();
     let new_envelope = replacement.seal(b"new", &context).unwrap();
@@ -346,7 +352,8 @@ fn rendezvous_timeout_returns_a_redacted_adapter_error() {
             HeaderProtocolAdapter::new(schema),
             Duration::from_millis(25),
         )),
-    );
+    )
+    .expect("custom adapters do not pin a kind");
 
     let error = client
         .request("only-arrival")
@@ -368,7 +375,8 @@ fn poisoned_rendezvous_returns_a_redacted_adapter_error() {
     let poisoner = Arc::clone(&adapter);
     let poison_result = std::thread::spawn(move || poisoner.poison_for_test()).join();
     assert!(poison_result.is_err(), "poisoning thread must panic");
-    let client = SecureClient::new(config, keys, adapter);
+    let client =
+        SecureClient::new(config, keys, adapter).expect("custom adapters do not pin a kind");
 
     let error = client
         .request("poisoned-rendezvous")
@@ -383,14 +391,17 @@ fn poisoned_rendezvous_returns_a_redacted_adapter_error() {
 fn shared_client_overlaps_and_builds_independent_requests_in_parallel() {
     let (config, keys, schema) =
         support::client_parts_with_mode(18, AuthenticationMode::LegacyPlaintext);
-    let client = Arc::new(SecureClient::new(
-        config,
-        keys,
-        Arc::new(RendezvousAdapter::new(
-            HeaderProtocolAdapter::new(schema),
-            Duration::from_secs(10),
-        )),
-    ));
+    let client = Arc::new(
+        SecureClient::new(
+            config,
+            keys,
+            Arc::new(RendezvousAdapter::new(
+                HeaderProtocolAdapter::new(schema),
+                Duration::from_secs(10),
+            )),
+        )
+        .expect("custom adapters do not pin a kind"),
+    );
     let handles = [
         ("operation-one", "thread-one"),
         ("operation-two", "thread-two"),
@@ -465,7 +476,8 @@ fn fluent_json_serialization_failure_is_redacted_and_stops_before_encryption() {
     let adapter = Arc::new(CountingAdapter {
         authentication_calls: AtomicUsize::new(0),
     });
-    let client = SecureClient::new(config, keys, adapter.clone());
+    let client = SecureClient::new(config, keys, adapter.clone())
+        .expect("custom adapters do not pin a kind");
 
     let error = client
         .request("serialize-failure")
@@ -509,7 +521,8 @@ fn fluent_json_validates_context_before_calling_user_serialize() {
     let adapter = Arc::new(CountingAdapter {
         authentication_calls: AtomicUsize::new(0),
     });
-    let client = SecureClient::new(config, keys, adapter.clone());
+    let client = SecureClient::new(config, keys, adapter.clone())
+        .expect("custom adapters do not pin a kind");
     let serialize_calls = AtomicUsize::new(0);
 
     let error = client

@@ -76,16 +76,14 @@ pub fn client_parts_with_mode(
         .local_signer_id(local_signer_id.clone())
         .expected_remote_signer_id(local_signer_id)
         .authentication_mode(authentication_mode)
-        .iv(*b"0123456789abcdef")
-        .build()
-        .expect("valid neutral client configuration");
-    let keys = KeyMaterial::new(
+        .iv(*b"0123456789abcdef");
+    #[cfg(feature = "aead")]
+    let config = config.envelope_mode(gmcrypto_envelope_lite::EnvelopeMode::LegacyCbc);
+    let config = config.build().expect("valid neutral client configuration");
+    let keys = KeyMaterial::shared(
         PrivateKey::from_encrypted_der(&pair.encrypted_private_der, TEST_PASSWORD)
-            .expect("runtime local signing key"),
-        PrivateKey::from_encrypted_der(&pair.encrypted_private_der, TEST_PASSWORD)
-            .expect("runtime local decryption key"),
-        PublicKey::from_der(&pair.public_der).expect("runtime remote verification key"),
-        PublicKey::from_der(&pair.public_der).expect("runtime remote encryption key"),
+            .expect("runtime local key"),
+        PublicKey::from_der(&pair.public_der).expect("runtime remote key"),
     );
 
     (config, keys, neutral_header_schema())
@@ -98,6 +96,7 @@ pub fn legacy_client_parts() -> (ClientConfig, KeyMaterial, HeaderSchema) {
 pub fn secure_client_with_seed(seed: u8) -> SecureClient {
     let (config, keys, schema) = client_parts_with_mode(seed, AuthenticationMode::LegacyPlaintext);
     SecureClient::new(config, keys, Arc::new(HeaderProtocolAdapter::new(schema)))
+        .expect("legacy header adapter matches LegacyPlaintext")
 }
 
 pub fn response_from_request(request: &RequestParts, certificate: &str) -> ResponseParts {

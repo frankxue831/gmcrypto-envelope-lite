@@ -36,7 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         PrivateKey::from_encrypted_file(local_decryption_path, password.as_bytes())?,
         PublicKey::from_file(remote_verification_path)?,
         PublicKey::from_file(remote_encryption_path)?,
-    );
+    )?;
     let client = example_client(keys)?;
     let payload = fs::read(payload_path)?;
     let request = client
@@ -68,11 +68,7 @@ fn example_client(keys: KeyMaterial) -> gmcrypto_envelope_lite::Result<SecureCli
         )?)
         .envelope_mode(EnvelopeMode::Aead(AeadAlgorithm::Sm4Gcm))
         .build()?;
-    Ok(SecureClient::new(
-        config,
-        keys,
-        Arc::new(ExampleContextAdapter),
-    ))
+    SecureClient::new(config, keys, Arc::new(ExampleContextAdapter))
 }
 
 /// This example implements [`ProtocolAdapter`] so callers can see custom

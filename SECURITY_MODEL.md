@@ -1,6 +1,6 @@
 # Security Model
 
-**Model version:** 3
+**Model version:** 4
 
 This document defines the security claims and non-claims for `gmcrypto-envelope-lite` 0.4.x. It is not an independent audit, certification, warranty, or proof of cryptographic security.
 
@@ -23,7 +23,7 @@ Inbound header names, header values, bodies, Base64 text, wrapped keys, signatur
 
 ### Directional key use
 
-`KeyMaterial::new` assigns independent local signing, local decryption, remote verification, and remote encryption roles. Shared-role constructors reuse keys only when the caller selects an explicitly named `shared` API.
+`KeyMaterial::new` assigns independent local signing, local decryption, remote verification, and remote encryption roles. Byte-identical local private keys or byte-identical remote public keys are rejected (`Error::Configuration` with field `key_roles`). Shared-role constructors reuse keys only when the caller selects an explicitly named `shared` API.
 
 ### Outbound envelopes
 
@@ -47,9 +47,11 @@ In the compatibility SM4-CBC mode, every envelope whose session key unwraps runs
 
 `AuthenticationMode::ContextBound` signs a versioned, length-delimited transcript containing the configured domain, adapter-provided canonical context bytes, and exact plaintext. It expands signature coverage but does not replace CBC, create AEAD, or supply replay protection.
 
+`SecureClient::new` returns `Error::AuthenticationContext` when an adapter pins an authentication kind that does not match `ClientConfig::authentication_mode`. The pin compares kind only, not the ContextBound domain separator. Adapters that do not pin a kind are accepted at construction and checked during seal or open.
+
 ### Input and output validation
 
-Configured message limits bound encoded and decoded envelope inputs. Typed headers reject invalid syntax, control-byte injection, and case-insensitive collisions. Caller headers are additive and cannot override actual adapter output.
+Configured message limits bound encoded and decoded envelope inputs. Typed headers reject invalid syntax, control-byte injection, and case-insensitive collisions. Caller headers are additive and cannot override actual adapter output. When the `aead` feature is enabled, `ClientConfig` requires an explicit `envelope_mode`; omitting it is `Error::Configuration` rather than a silent LegacyCbc default.
 
 ### SDK-owned memory and diagnostics
 

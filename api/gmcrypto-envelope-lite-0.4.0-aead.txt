@@ -1,4 +1,16 @@
 pub mod gmcrypto_envelope_lite
+#[non_exhaustive] pub enum gmcrypto_envelope_lite::AdapterAuthentication
+pub gmcrypto_envelope_lite::AdapterAuthentication::ContextBound
+pub gmcrypto_envelope_lite::AdapterAuthentication::LegacyPlaintext
+impl core::clone::Clone for gmcrypto_envelope_lite::AdapterAuthentication
+pub fn gmcrypto_envelope_lite::AdapterAuthentication::clone(&self) -> gmcrypto_envelope_lite::AdapterAuthentication
+impl core::cmp::Eq for gmcrypto_envelope_lite::AdapterAuthentication
+impl core::cmp::PartialEq for gmcrypto_envelope_lite::AdapterAuthentication
+pub fn gmcrypto_envelope_lite::AdapterAuthentication::eq(&self, &gmcrypto_envelope_lite::AdapterAuthentication) -> bool
+impl core::fmt::Debug for gmcrypto_envelope_lite::AdapterAuthentication
+pub fn gmcrypto_envelope_lite::AdapterAuthentication::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for gmcrypto_envelope_lite::AdapterAuthentication
+impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::AdapterAuthentication
 #[non_exhaustive] pub enum gmcrypto_envelope_lite::AdapterErrorKind
 pub gmcrypto_envelope_lite::AdapterErrorKind::DuplicateField
 pub gmcrypto_envelope_lite::AdapterErrorKind::InvalidField
@@ -221,6 +233,7 @@ pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::fmt(&self, &mut core::fmt:
 impl gmcrypto_envelope_lite::ProtocolAdapter for gmcrypto_envelope_lite::HeaderProtocolAdapter
 pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::build_request(&self, &gmcrypto_envelope_lite::ClientIdentity, &gmcrypto_envelope_lite::ProtocolRequestContext, &gmcrypto_envelope_lite::SecureEnvelope) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::RequestParts>
 pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::parse_response(&self, gmcrypto_envelope_lite::ResponseParts) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::ParsedResponse>
+pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::pinned_authentication(&self) -> core::option::Option<gmcrypto_envelope_lite::AdapterAuthentication>
 pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::request_authentication_context(&self, &gmcrypto_envelope_lite::ClientIdentity, &gmcrypto_envelope_lite::ProtocolRequestContext) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::AuthenticationContext>
 pub struct gmcrypto_envelope_lite::HeaderSchema
 impl gmcrypto_envelope_lite::HeaderSchema
@@ -270,7 +283,7 @@ pub fn gmcrypto_envelope_lite::HeaderValue::fmt(&self, &mut core::fmt::Formatter
 impl core::marker::StructuralPartialEq for gmcrypto_envelope_lite::HeaderValue
 pub struct gmcrypto_envelope_lite::KeyMaterial
 impl gmcrypto_envelope_lite::KeyMaterial
-pub fn gmcrypto_envelope_lite::KeyMaterial::new(gmcrypto_envelope_lite::PrivateKey, gmcrypto_envelope_lite::PrivateKey, gmcrypto_envelope_lite::PublicKey, gmcrypto_envelope_lite::PublicKey) -> Self
+pub fn gmcrypto_envelope_lite::KeyMaterial::new(gmcrypto_envelope_lite::PrivateKey, gmcrypto_envelope_lite::PrivateKey, gmcrypto_envelope_lite::PublicKey, gmcrypto_envelope_lite::PublicKey) -> gmcrypto_envelope_lite::Result<Self>
 pub const fn gmcrypto_envelope_lite::KeyMaterial::remote_encryption_source(&self) -> gmcrypto_envelope_lite::PeerKeySource
 pub const fn gmcrypto_envelope_lite::KeyMaterial::remote_verification_source(&self) -> gmcrypto_envelope_lite::PeerKeySource
 pub fn gmcrypto_envelope_lite::KeyMaterial::shared(gmcrypto_envelope_lite::PrivateKey, gmcrypto_envelope_lite::PublicKey) -> Self
@@ -403,7 +416,7 @@ impl gmcrypto_envelope_lite::SecureClient
 pub fn gmcrypto_envelope_lite::SecureClient::build_json_request<T: serde_core::ser::Serialize>(&self, &T, gmcrypto_envelope_lite::RequestContext) -> gmcrypto_envelope_lite::Result<gmcrypto_envelope_lite::RequestParts>
 pub fn gmcrypto_envelope_lite::SecureClient::build_request(&self, &[u8], gmcrypto_envelope_lite::RequestContext) -> gmcrypto_envelope_lite::Result<gmcrypto_envelope_lite::RequestParts>
 pub fn gmcrypto_envelope_lite::SecureClient::config(&self) -> &gmcrypto_envelope_lite::ClientConfig
-pub fn gmcrypto_envelope_lite::SecureClient::new(gmcrypto_envelope_lite::ClientConfig, gmcrypto_envelope_lite::KeyMaterial, alloc::sync::Arc<dyn gmcrypto_envelope_lite::ProtocolAdapter>) -> Self
+pub fn gmcrypto_envelope_lite::SecureClient::new(gmcrypto_envelope_lite::ClientConfig, gmcrypto_envelope_lite::KeyMaterial, alloc::sync::Arc<dyn gmcrypto_envelope_lite::ProtocolAdapter>) -> gmcrypto_envelope_lite::Result<Self>
 pub fn gmcrypto_envelope_lite::SecureClient::open(&self, &gmcrypto_envelope_lite::SecureEnvelope, &gmcrypto_envelope_lite::AuthenticationContext) -> gmcrypto_envelope_lite::Result<alloc::vec::Vec<u8>>
 pub fn gmcrypto_envelope_lite::SecureClient::open_json_response<T: serde_core::de::DeserializeOwned>(&self, gmcrypto_envelope_lite::ResponseParts) -> gmcrypto_envelope_lite::Result<T>
 pub fn gmcrypto_envelope_lite::SecureClient::open_response(&self, gmcrypto_envelope_lite::ResponseParts) -> gmcrypto_envelope_lite::Result<alloc::vec::Vec<u8>>
@@ -431,10 +444,12 @@ pub const gmcrypto_envelope_lite::SM4_CCM_MAX_PLAINTEXT_BYTES: usize
 pub trait gmcrypto_envelope_lite::ProtocolAdapter: core::marker::Send + core::marker::Sync
 pub fn gmcrypto_envelope_lite::ProtocolAdapter::build_request(&self, &gmcrypto_envelope_lite::ClientIdentity, &gmcrypto_envelope_lite::ProtocolRequestContext, &gmcrypto_envelope_lite::SecureEnvelope) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::RequestParts>
 pub fn gmcrypto_envelope_lite::ProtocolAdapter::parse_response(&self, gmcrypto_envelope_lite::ResponseParts) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::ParsedResponse>
+pub fn gmcrypto_envelope_lite::ProtocolAdapter::pinned_authentication(&self) -> core::option::Option<gmcrypto_envelope_lite::AdapterAuthentication>
 pub fn gmcrypto_envelope_lite::ProtocolAdapter::request_authentication_context(&self, &gmcrypto_envelope_lite::ClientIdentity, &gmcrypto_envelope_lite::ProtocolRequestContext) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::AuthenticationContext>
 impl gmcrypto_envelope_lite::ProtocolAdapter for gmcrypto_envelope_lite::HeaderProtocolAdapter
 pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::build_request(&self, &gmcrypto_envelope_lite::ClientIdentity, &gmcrypto_envelope_lite::ProtocolRequestContext, &gmcrypto_envelope_lite::SecureEnvelope) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::RequestParts>
 pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::parse_response(&self, gmcrypto_envelope_lite::ResponseParts) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::ParsedResponse>
+pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::pinned_authentication(&self) -> core::option::Option<gmcrypto_envelope_lite::AdapterAuthentication>
 pub fn gmcrypto_envelope_lite::HeaderProtocolAdapter::request_authentication_context(&self, &gmcrypto_envelope_lite::ClientIdentity, &gmcrypto_envelope_lite::ProtocolRequestContext) -> gmcrypto_envelope_lite::AdapterResult<gmcrypto_envelope_lite::AuthenticationContext>
 pub type gmcrypto_envelope_lite::AdapterResult<T> = core::result::Result<T, gmcrypto_envelope_lite::AdapterError>
 pub type gmcrypto_envelope_lite::Result<T> = core::result::Result<T, gmcrypto_envelope_lite::Error>

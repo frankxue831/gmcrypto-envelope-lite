@@ -30,6 +30,28 @@ pub trait ProtocolAdapter: Send + Sync {
 
     /// Parses raw transport parts into a protocol-neutral response.
     fn parse_response(&self, response: ResponseParts) -> AdapterResult<ParsedResponse>;
+
+    /// Returns the authentication kind this adapter is pinned to, if any.
+    ///
+    /// [`HeaderProtocolAdapter`] pins a kind from its schema.
+    /// Adapters that return [`None`] (the default) are not checked at
+    /// [`crate::SecureClient::new`] and are checked only when sealing or opening.
+    fn pinned_authentication(&self) -> Option<AdapterAuthentication> {
+        None
+    }
+}
+
+/// Authentication kind a built-in adapter may pin against [`crate::ClientConfig`].
+///
+/// The pin compares kind only. [`Self::ContextBound`] matches any
+/// [`crate::AuthenticationMode::ContextBound`] domain.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum AdapterAuthentication {
+    /// Pins [`crate::AuthenticationMode::LegacyPlaintext`].
+    LegacyPlaintext,
+    /// Pins [`crate::AuthenticationMode::ContextBound`].
+    ContextBound,
 }
 
 /// Selects whether encrypted content is carried in the body or in a header.
@@ -467,6 +489,13 @@ impl ProtocolAdapter for HeaderProtocolAdapter {
                 encode_request_context(context.operation(), context.metadata().request_id())
             }
         }
+    }
+
+    fn pinned_authentication(&self) -> Option<AdapterAuthentication> {
+        Some(match self.schema.authentication {
+            HeaderAuthentication::Legacy => AdapterAuthentication::LegacyPlaintext,
+            HeaderAuthentication::ContextBound => AdapterAuthentication::ContextBound,
+        })
     }
 
     fn build_request(

@@ -584,6 +584,7 @@ pub fn client() -> &'static SecureClient {
             .local_signer_id(b"fuzz-signer")
             .expected_remote_signer_id(b"fuzz-signer")
             .authentication_mode(AuthenticationMode::LegacyPlaintext)
+            .envelope_mode(gmcrypto_envelope_lite::EnvelopeMode::LegacyCbc)
             .iv(*b"0123456789abcdef")
             .max_plaintext_bytes(MAX_PLAINTEXT_BYTES)
             .build()
@@ -598,6 +599,7 @@ pub fn client() -> &'static SecureClient {
             keys,
             Arc::new(HeaderProtocolAdapter::new(schema().clone())),
         )
+        .expect("legacy header adapter matches LegacyPlaintext")
     })
 }
 
@@ -711,6 +713,17 @@ fn mutate(valid: &str, raw: &[u8]) -> String {
     String::from_utf8(value).expect("base64 is UTF-8")
 }
 
+pub fn context_schema() -> &'static HeaderSchema {
+    static SCHEMA: OnceLock<HeaderSchema> = OnceLock::new();
+    SCHEMA.get_or_init(|| {
+        fuzz_schema_builder()
+            .response_cipher(CipherLocation::Body)
+            .context_bound_authentication()
+            .build()
+            .expect("fixed context-bound fuzz schema")
+    })
+}
+
 pub fn context_client() -> &'static SecureClient {
     static CLIENT: OnceLock<SecureClient> = OnceLock::new();
     CLIENT.get_or_init(|| {
@@ -732,6 +745,7 @@ pub fn context_client() -> &'static SecureClient {
                 AuthenticationMode::context_bound(CONTEXT_DOMAIN_SEPARATOR)
                     .expect("nonempty fuzz domain separator"),
             )
+            .envelope_mode(gmcrypto_envelope_lite::EnvelopeMode::LegacyCbc)
             .iv(*b"0123456789abcdef")
             .max_plaintext_bytes(MAX_PLAINTEXT_BYTES)
             .build()
@@ -744,8 +758,9 @@ pub fn context_client() -> &'static SecureClient {
         SecureClient::new(
             config,
             keys,
-            Arc::new(HeaderProtocolAdapter::new(schema().clone())),
+            Arc::new(HeaderProtocolAdapter::new(context_schema().clone())),
         )
+        .expect("context-bound header adapter matches ContextBound")
     })
 }
 
@@ -846,6 +861,7 @@ fn aead_client_with(algorithm: gmcrypto_envelope_lite::AeadAlgorithm) -> SecureC
         keys,
         Arc::new(HeaderProtocolAdapter::new(schema().clone())),
     )
+    .expect("legacy header adapter matches LegacyPlaintext")
 }
 
 pub fn aead_valid_envelope() -> &'static SecureEnvelope {

@@ -102,22 +102,21 @@ fn message_too_large_error_redacts_the_oversized_plaintext() {
         .expected_remote_signer_id(b"signer")
         .authentication_mode(AuthenticationMode::LegacyPlaintext)
         .iv(*b"0123456789abcdef")
-        .max_plaintext_bytes(8)
-        .build()
-        .expect("small-limit configuration");
-    let keys = KeyMaterial::new(
+        .max_plaintext_bytes(8);
+    #[cfg(feature = "aead")]
+    let config = config.envelope_mode(gmcrypto_envelope_lite::EnvelopeMode::LegacyCbc);
+    let config = config.build().expect("small-limit configuration");
+    let keys = KeyMaterial::shared(
         PrivateKey::from_encrypted_der(&pair.encrypted_private_der, support::TEST_PASSWORD)
-            .expect("local signing key"),
-        PrivateKey::from_encrypted_der(&pair.encrypted_private_der, support::TEST_PASSWORD)
-            .expect("local decryption key"),
-        PublicKey::from_der(&pair.public_der).expect("remote verification key"),
-        PublicKey::from_der(&pair.public_der).expect("remote encryption key"),
+            .expect("local key"),
+        PublicKey::from_der(&pair.public_der).expect("remote key"),
     );
     let client = SecureClient::new(
         config,
         keys,
         Arc::new(HeaderProtocolAdapter::new(support::neutral_header_schema())),
-    );
+    )
+    .expect("legacy header adapter matches LegacyPlaintext");
 
     let oversized = format!("{SECRET}{SECRET}");
     let error = client

@@ -420,7 +420,7 @@ fn security_model_is_versioned_and_states_claims_and_non_claims() {
     assert_markers(
         &model,
         &[
-            "**Model version:** 3",
+            "**Model version:** 4",
             "## Protected assets and attacker-controlled inputs",
             "## Trust boundaries",
             "## Security claims",
@@ -477,7 +477,7 @@ fn api_stability_policy_records_open_and_closed_boundaries() {
             "KeyKind",
             "PeerKeySource",
             "Error",
-            "`AuthenticationMode`, `AdapterErrorKind`, `KeyKind`, `PeerKeySource`, `Error`, and the feature-gated `EnvelopeMode` and `AeadAlgorithm` are `#[non_exhaustive]`.",
+            "`AuthenticationMode`, `AdapterAuthentication`, `AdapterErrorKind`, `KeyKind`, `PeerKeySource`, `Error`, and the feature-gated `EnvelopeMode` and `AeadAlgorithm` are `#[non_exhaustive]`.",
             "CipherLocation",
             "`CipherLocation` is exhaustive",
             "ProtocolAdapter",
@@ -493,7 +493,7 @@ fn engineering_evidence_is_versioned_and_disclaims_audit_status() {
     assert_markers(
         &evidence,
         &[
-            "**Evidence version:** 3",
+            "**Evidence version:** 4",
             "not an independent audit, certification, warranty, or proof",
             "tests/standard_vectors.rs",
             "directional_roles_drive_two_party_cryptography",
