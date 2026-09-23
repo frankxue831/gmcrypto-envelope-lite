@@ -1,5 +1,7 @@
 # gmcrypto-envelope-lite
 
+中文版：[README.zh-CN.md](README.zh-CN.md)（以英文版为准）。
+
 `gmcrypto-envelope-lite` is a small, synchronous, HTTP-neutral Rust library for SM2/SM3 signatures and SM4 secure envelopes. It is **not independently audited**. Treat it as security-sensitive software, review it for your threat model, and complete your own cryptographic and integration assessment before deployment.
 
 The versioned [Security model](SECURITY_MODEL.md) is the authoritative list of claims, non-claims, trust boundaries, and required caller controls.
