@@ -513,16 +513,16 @@ fn cryptographic_dependency_inventory_records_the_reviewed_root_lockfile() {
     let inventory = repository_file("docs/security/cryptographic-dependencies.md");
 
     assert!(manifest.contains("gmcrypto-core = { version = \"1.11\", features = [\"x509\"] }"));
-    assert!(lockfile.contains("name = \"gmcrypto-core\"\nversion = \"1.13.0\""));
+    assert!(lockfile.contains("name = \"gmcrypto-core\"\nversion = \"1.17.0\""));
     assert!(lockfile.contains(
-        "checksum = \"7229c25ab33a6ab2e8134ff692a7cd685b9be93613016e533389dd2f87bccdd4\""
+        "checksum = \"0d5f330bcc8971bcb69bba5edd81356988b93faba460f339af5859a83a5492ec\""
     ));
     assert_markers(
         &inventory,
         &[
             "**Inventory version:** 2",
-            "The direct manifest requirement is `1.11` with `x509`; the reviewed resolution is `1.13.0`",
-            "`11216dbbc7f4e061f5049cf6f0b95dffdab73515bb1a8548ae201e00a1086e31`",
+            "The direct manifest requirement is `1.11` with `x509`; the reviewed resolution is `1.17.0`",
+            "`f2d0f90ccb5889c23565bc91bb01b111dcffb697da560fc26993f2dbf39c7bd2`",
             "unsafe_code = \"forbid\"",
             "No universal constant-time claim",
         ],
@@ -581,7 +581,7 @@ fn release_checklist_separates_build_approval_and_authorization() {
             "Linux CI passed for the exact candidate commit; record the run ID and actual `rustc --version`.",
             "macOS CI passed for the exact candidate commit; record the run ID and actual `rustc --version`.",
             "Windows CI passed for the exact candidate commit; record the run ID and actual `rustc --version`.",
-            "Rust 1.85 MSRV CI passed for the exact candidate commit; record the run ID and actual `rustc --version`.",
+            "Rust 1.87 MSRV CI passed for the exact candidate commit; record the run ID and actual `rustc --version`.",
             "Each following gate must identify the unchanged complete artifact set and include every required evidence record field above.",
             "Self security review completed against the prepared review packet",
             "License and dependency hygiene",
@@ -650,7 +650,7 @@ fn contributing_tooling_pins_match_the_release_workflows() {
             "cargo-deny 0.20.2",
             "cargo-public-api 0.52.0",
             "actionlint 1.7.12",
-            "Rust 1.85.0",
+            "Rust 1.87.0",
             "nightly-2026-05-23",
         ],
     );

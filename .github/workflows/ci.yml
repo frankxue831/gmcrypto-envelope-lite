@@ -34,7 +34,7 @@ jobs:
         run: sh tests/open_source_boundary.sh
 
   msrv:
-    name: Rust 1.85 MSRV
+    name: Rust 1.87 MSRV
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -42,7 +42,7 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
-          toolchain: 1.85.0
+          toolchain: 1.87.0
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - run: cargo test --all-targets --locked
       - run: cargo test --all-targets --locked --features aead

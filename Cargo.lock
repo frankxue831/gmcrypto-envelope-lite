@@ -34,18 +34,18 @@ checksum = "15b85f9c39137c3a891689859392b1bd49812121d0d61c9caf00d46ed5ce06ae"
 
 [[package]]
 name = "cpufeatures"
-version = "0.2.17"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280"
+checksum = "5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566"
 dependencies = [
  "libc",
 ]
 
 [[package]]
 name = "crypto-bigint"
-version = "0.7.5"
+version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a52aa3fcda4e6302a9f48734f234d35d4721b96f8fe07d073f07ce9df4f0271"
+checksum = "9c035cb64cba03dad2fb921f3e218785e8cf9a41790da5eb3a1400f62fa2be11"
 dependencies = [
  "cpubits",
  "ctutils",
@@ -57,9 +57,9 @@ dependencies = [
 
 [[package]]
 name = "ctutils"
-version = "0.4.2"
+version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d5515a3834141de9eafb9717ad39eea8247b5674e6066c404e8c4b365d2a29e"
+checksum = "fe3e9d21d39e6f39ff46e03d5b621424f88ee23d8a1672c6bfc9ccc7f2da4f6a"
 dependencies = [
  "cmov",
  "subtle",
@@ -79,9 +79,9 @@ dependencies = [
 
 [[package]]
 name = "gmcrypto-core"
-version = "1.13.0"
+version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7229c25ab33a6ab2e8134ff692a7cd685b9be93613016e533389dd2f87bccdd4"
+checksum = "0d5f330bcc8971bcb69bba5edd81356988b93faba460f339af5859a83a5492ec"
 dependencies = [
  "crypto-bigint",
  "gmcrypto-simd",
@@ -106,9 +106,9 @@ dependencies = [
 
 [[package]]
 name = "gmcrypto-simd"
-version = "1.13.0"
+version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b83208665be07dcb272e96b42bfc37dab5ec64918a416a44c295d4bc6742c15"
+checksum = "cb4dd15d5b51b773e12152989df76a7c387622ea136c66f2380adf9883251ec4"
 dependencies = [
  "cpufeatures",
 ]

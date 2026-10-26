@@ -4,7 +4,7 @@ Thank you for considering a contribution. This crate is small and deliberately c
 
 ## Requirements
 
-- Rust 1.85 or newer (edition 2024). CI also builds on the 1.85 MSRV toolchain.
+- Rust 1.87 or newer (edition 2024). CI also builds on the 1.87 MSRV toolchain.
 - Python 3 available as `python3` is required by `tests/release_candidate.sh` to parse and validate release-candidate manifest JSON.
 - Go is required to install actionlint 1.7.12, which must be available on `PATH` when `tests/workflows.sh` validates workflow syntax and contracts.
 - A change must keep the public API's documented invariants: no plaintext, keys, or secrets in `Debug` output, errors, or logs.
@@ -32,7 +32,7 @@ The package helper requires a clean worktree. Its `mktemp` parent keeps the pack
 
 ## Release-readiness checks
 
-The release gates use Rust stable, Rust 1.85.0, and nightly-2026-05-23. Their auxiliary tools are pinned to cargo-deny 0.20.2, cargo-public-api 0.52.0, cargo-fuzz 0.13.2, and actionlint 1.7.12. Install each Cargo tool with its exact `--version` and `--locked`; install the workflow checker with `go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12`.
+The release gates use Rust stable, Rust 1.87.0, and nightly-2026-05-23. Their auxiliary tools are pinned to cargo-deny 0.20.2, cargo-public-api 0.52.0, cargo-fuzz 0.13.2, and actionlint 1.7.12. Install each Cargo tool with its exact `--version` and `--locked`; install the workflow checker with `go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12`.
 
 Exercise each fail-closed checker and then its repository gate:
 

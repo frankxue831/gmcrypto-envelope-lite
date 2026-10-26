@@ -455,8 +455,8 @@ case "$1" in
         case "$toolchain:$tool" in
             stable:cargo) printf '%s\n' "$FAKE_STABLE_CARGO" ;;
             stable:rustc) printf '%s\n' "$FAKE_STABLE_RUSTC" ;;
-            1.85.0:cargo) printf '%s\n' "$FAKE_MSRV_CARGO" ;;
-            1.85.0:rustc) printf '%s\n' "$FAKE_MSRV_RUSTC" ;;
+            1.87.0:cargo) printf '%s\n' "$FAKE_MSRV_CARGO" ;;
+            1.87.0:rustc) printf '%s\n' "$FAKE_MSRV_RUSTC" ;;
             nightly-2026-05-23:cargo) printf '%s\n' "$FAKE_NIGHTLY_CARGO" ;;
             nightly-2026-05-23:rustc) printf '%s\n' "$FAKE_NIGHTLY_RUSTC" ;;
             *) exit 91 ;;
@@ -576,7 +576,7 @@ EOF
 cat >"$rc_tools/msrv-bin/rustc" <<'EOF'
 #!/bin/sh
 test "$1" = --version
-printf '%s\n' 'rustc 1.85.0 (fixture msrv)'
+printf '%s\n' 'rustc 1.87.0 (fixture msrv)'
 EOF
 cat >"$rc_tools/nightly-bin/rustc" <<'EOF'
 #!/bin/sh

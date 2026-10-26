@@ -20,7 +20,7 @@ jobs:
           components: clippy,rustfmt
       - name: Install pinned verification toolchains
         run: |
-          rustup toolchain install 1.85.0 --profile minimal
+          rustup toolchain install 1.87.0 --profile minimal
           rustup toolchain install nightly-2026-05-23 --profile minimal
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: Install pinned release-readiness tools
