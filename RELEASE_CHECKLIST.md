@@ -53,7 +53,7 @@ Each following gate must identify the unchanged complete artifact set and includ
 - [ ] Linux CI passed for the exact candidate commit; record the run ID and actual `rustc --version`.
 - [ ] macOS CI passed for the exact candidate commit; record the run ID and actual `rustc --version`.
 - [ ] Windows CI passed for the exact candidate commit; record the run ID and actual `rustc --version`.
-- [ ] Rust 1.85 MSRV CI passed for the exact candidate commit; record the run ID and actual `rustc --version`.
+- [ ] Rust 1.87 MSRV CI passed for the exact candidate commit; record the run ID and actual `rustc --version`.
 - [ ] Self security review completed against the prepared review packet, with residual rulings and a signed disposition recorded.
 - [ ] License and dependency hygiene: the committed license files match the manifest license expression, and a fresh `cargo deny check` ran green at the candidate commit on the review date.
 - [ ] Repository history scanned for secrets, and the publication method — public history or fresh reviewed export — decided and recorded before the repository becomes public.

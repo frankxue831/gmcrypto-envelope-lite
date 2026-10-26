@@ -52,14 +52,14 @@ trap 'cleanup_fixture' EXIT HUP INT TERM
 
 make_fixture
 replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
-    'Backend registry checksum: `7229c25ab33a6ab2e8134ff692a7cd685b9be93613016e533389dd2f87bccdd4`' \
+    'Backend registry checksum: `0d5f330bcc8971bcb69bba5edd81356988b93faba460f339af5859a83a5492ec`' \
     'Backend registry checksum: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
 expect_failure "altered documented backend checksum" "gmcrypto-core registry checksum differs from the inventory"
 cleanup_fixture
 
 make_fixture
 replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
-    'Reviewed Cargo.lock SHA-256: `11216dbbc7f4e061f5049cf6f0b95dffdab73515bb1a8548ae201e00a1086e31`' \
+    'Reviewed Cargo.lock SHA-256: `f2d0f90ccb5889c23565bc91bb01b111dcffb697da560fc26993f2dbf39c7bd2`' \
     'Reviewed Cargo.lock SHA-256: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
 expect_failure "stale documented lock hash" "Cargo.lock differs from the reviewed inventory"
 cleanup_fixture
@@ -72,8 +72,8 @@ cleanup_fixture
 
 make_fixture
 replace_text "$fixture/ci/crypto-inventory.snapshot" \
-    'ctutils|0.4.2|default,subtle|' \
-    'ctutils|0.4.2|subtle|'
+    'ctutils|0.4.6|default,subtle|' \
+    'ctutils|0.4.6|subtle|'
 expect_failure "altered reviewed feature data" "human-readable cryptographic dependency table differs from the reviewed snapshot"
 cleanup_fixture
 
@@ -91,15 +91,15 @@ cleanup_fixture
 
 make_fixture
 replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
-    '| `ctutils` | `0.4.2` |' \
+    '| `ctutils` | `0.4.6` |' \
     '| `ctutils` | `0.4.9` |'
 expect_failure "doc-only dependency version drift" "human-readable cryptographic dependency table differs from the reviewed snapshot"
 cleanup_fixture
 
 make_fixture
 replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
-    '| `ctutils` | `0.4.2` | `default`, `subtle` |' \
-    '| `ctutils` | `0.4.2` | `subtle` |'
+    '| `ctutils` | `0.4.6` | `default`, `subtle` |' \
+    '| `ctutils` | `0.4.6` | `subtle` |'
 expect_failure "doc-only dependency feature drift" "human-readable cryptographic dependency table differs from the reviewed snapshot"
 cleanup_fixture
 
@@ -139,58 +139,58 @@ cleanup_fixture
 
 make_fixture
 replace_text "$fixture/ci/crypto-inventory-aead.snapshot" \
-    'cpufeatures|0.2.17|default|59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280|' \
-    'cpufeatures|0.2.17|default|aaaa|'
+    'cpufeatures|0.3.1|default|5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566|' \
+    'cpufeatures|0.3.1|default|aaaa|'
 expect_failure "invalid AEAD snapshot checksum" "AEAD cryptographic dependency snapshot has an invalid row"
 cleanup_fixture
 
 make_fixture
 replace_text "$fixture/ci/crypto-inventory-aead.snapshot" \
-    'gmcrypto-simd|1.13.0|none|' \
-    'unexpected-simd|1.13.0|none|'
+    'gmcrypto-simd|1.17.0|none|' \
+    'unexpected-simd|1.17.0|none|'
 expect_failure "unexpected AEAD package name" "AEAD cryptographic dependency snapshot has missing or unexpected packages"
 cleanup_fixture
 
 make_fixture
 replace_text "$fixture/ci/crypto-inventory-aead.snapshot" \
-    'gmcrypto-simd|1.13.0|none|' \
-    'gmcrypto-simd|1.12.0|none|'
+    'gmcrypto-simd|1.17.0|none|' \
+    'gmcrypto-simd|1.16.0|none|'
 replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
-    '| `gmcrypto-simd` | `1.13.0` | `none` |' \
-    '| `gmcrypto-simd` | `1.12.0` | `none` |'
+    '| `gmcrypto-simd` | `1.17.0` | `none` |' \
+    '| `gmcrypto-simd` | `1.16.0` | `none` |'
 expect_failure "re-versioned AEAD package" "AEAD cryptographic dependency snapshot has missing, unexpected, or re-versioned packages"
 cleanup_fixture
 
 make_fixture
 replace_text "$fixture/ci/crypto-inventory-aead.snapshot" \
-    'gmcrypto-core|1.13.0|default,sm4-aead,x509|' \
-    'gmcrypto-core|1.13.0|default,x509|'
+    'gmcrypto-core|1.17.0|default,sm4-aead,x509|' \
+    'gmcrypto-core|1.17.0|default,x509|'
 expect_failure "AEAD snapshot feature drift" "human-readable cryptographic dependency table differs from the reviewed snapshot"
 cleanup_fixture
 
 make_fixture
 replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
-    '| `gmcrypto-simd` | `1.13.0` | `none` |' \
-    '| `gmcrypto-simd` | `1.13.0` | `default` |'
+    '| `gmcrypto-simd` | `1.17.0` | `none` |' \
+    '| `gmcrypto-simd` | `1.17.0` | `default` |'
 expect_failure "doc-only AEAD feature drift" "human-readable cryptographic dependency table differs from the reviewed snapshot"
 cleanup_fixture
 
 make_fixture
 replace_text "$fixture/ci/crypto-inventory-aead.snapshot" \
-    'cpufeatures|0.2.17|default|' \
-    'cpufeatures|0.2.17|none|'
+    'cpufeatures|0.3.1|default|' \
+    'cpufeatures|0.3.1|none|'
 replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
-    '| `cpufeatures` | `0.2.17` | `default` |' \
-    '| `cpufeatures` | `0.2.17` | `none` |'
+    '| `cpufeatures` | `0.3.1` | `default` |' \
+    '| `cpufeatures` | `0.3.1` | `none` |'
 expect_failure "resolved AEAD feature drift" "resolved AEAD cryptographic dependency package, feature, or checksum differs from the reviewed snapshot"
 cleanup_fixture
 
 make_fixture
 replace_text "$fixture/ci/crypto-inventory-aead.snapshot" \
-    '59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280' \
+    '5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566' \
     'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
-    '59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280' \
+    '5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566' \
     'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 expect_failure "resolved AEAD checksum drift" "resolved AEAD cryptographic dependency package, feature, or checksum differs from the reviewed snapshot"
 cleanup_fixture

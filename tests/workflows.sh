@@ -335,7 +335,7 @@ check_contract() (
     check_job "$ci" msrv "$check_tmp/ci-msrv"
     require_regex "$check_tmp/ci-msrv" 'runs-on:[[:space:]]*ubuntu-latest' "MSRV job must run on Ubuntu"
     check_checkout "$check_tmp/ci-msrv" "$check_tmp/ci-msrv-checkout"
-    check_toolchain "$check_tmp/ci-msrv" 1.85.0 "$check_tmp/ci-msrv-toolchain"
+    check_toolchain "$check_tmp/ci-msrv" 1.87.0 "$check_tmp/ci-msrv-toolchain"
     check_cache "$check_tmp/ci-msrv" "$check_tmp/ci-msrv-cache"
     require_run_step "$check_tmp/ci-msrv" 'cargo test --all-targets --locked' \
         "MSRV job must run locked all-target tests"
@@ -461,8 +461,8 @@ check_contract() (
     check_named_step "$check_tmp/release-job" 'Install pinned verification toolchains' \
         "$check_tmp/release-verification-toolchains"
     require_exact_line "$check_tmp/release-verification-toolchains" \
-        '          rustup toolchain install 1.85.0 --profile minimal' \
-        "release-candidate job must install Rust 1.85.0"
+        '          rustup toolchain install 1.87.0 --profile minimal' \
+        "release-candidate job must install Rust 1.87.0"
     require_exact_line "$check_tmp/release-verification-toolchains" \
         '          rustup toolchain install nightly-2026-05-23 --profile minimal' \
         "release-candidate job must install the pinned nightly"

@@ -204,7 +204,7 @@ resolve_toolchain stable stable
 stable_cargo=$resolved_cargo
 stable_rustc=$resolved_rustc
 stable_bin=$resolved_cargo_bin
-resolve_toolchain 1.85.0 msrv
+resolve_toolchain 1.87.0 msrv
 msrv_cargo=$resolved_cargo
 msrv_rustc=$resolved_rustc
 msrv_bin=$resolved_cargo_bin
@@ -235,9 +235,9 @@ run_rustc() {
 
 rustc_version=$(run_rustc stable "$stable_bin" "$stable_rustc" --version) || \
     fail "stable rustc is unavailable"
-msrv_rustc_version=$(run_rustc 1.85.0 "$msrv_bin" "$msrv_rustc" --version) || \
-    fail "Rust 1.85.0 is unavailable"
-case "$msrv_rustc_version" in 'rustc 1.85.0 '*) ;; *) fail "missing exact Rust 1.85.0 toolchain" ;; esac
+msrv_rustc_version=$(run_rustc 1.87.0 "$msrv_bin" "$msrv_rustc" --version) || \
+    fail "Rust 1.87.0 is unavailable"
+case "$msrv_rustc_version" in 'rustc 1.87.0 '*) ;; *) fail "missing exact Rust 1.87.0 toolchain" ;; esac
 run_rustc "$PUBLIC_API_TOOLCHAIN" "$public_api_bin" "$public_api_rustc" --version >/dev/null || \
     fail "pinned public API rustc is unavailable"
 fuzz_rustc_version=$(run_rustc "$FUZZ_TOOLCHAIN" "$fuzz_bin" "$fuzz_rustc" --version) || \
@@ -278,8 +278,8 @@ grep -F "**Template version:** $RELEASE_CHECKLIST_VERSION" \
     run_cargo stable "$stable_bin" "$stable_cargo" doc --locked --no-deps)
 (cd "$repo_root" && export RUSTDOCFLAGS="-D missing-docs -D warnings" && \
     run_cargo stable "$stable_bin" "$stable_cargo" doc --locked --no-deps --features aead)
-(cd "$repo_root" && run_cargo 1.85.0 "$msrv_bin" "$msrv_cargo" test --all-targets --locked)
-(cd "$repo_root" && run_cargo 1.85.0 "$msrv_bin" "$msrv_cargo" test --all-targets --locked --features aead)
+(cd "$repo_root" && run_cargo 1.87.0 "$msrv_bin" "$msrv_cargo" test --all-targets --locked)
+(cd "$repo_root" && run_cargo 1.87.0 "$msrv_bin" "$msrv_cargo" test --all-targets --locked --features aead)
 (cd "$repo_root" && run_cargo stable "$stable_bin" "$stable_cargo" deny check)
 PATH="$stable_bin:$original_path" "$repo_root/ci/check-public-api.sh"
 PATH="$stable_bin:$original_path" "$repo_root/ci/check-crypto-inventory.sh"
