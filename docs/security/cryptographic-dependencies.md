@@ -2,9 +2,9 @@
 
 **Inventory version:** 2
 
-- Reviewed Cargo.lock SHA-256: `f2d0f90ccb5889c23565bc91bb01b111dcffb697da560fc26993f2dbf39c7bd2`
+- Reviewed Cargo.lock SHA-256: `f6c5db80decef989774fb531eb4e7ae2d4a1f688a69c295854630706d49ab8bd`
 - Root crate policy: `#![forbid(unsafe_code)]`
-- Backend registry checksum: `0d5f330bcc8971bcb69bba5edd81356988b93faba460f339af5859a83a5492ec`
+- Backend registry checksum: `0418a367e01212db4e29d3cdd39dbc0c402479d7992d252b30f740221f64b104`
 
 The reviewed boundary is the exact package, version, enabled-feature, registry-checksum, and source-scan-status snapshot in `ci/crypto-inventory.snapshot`. `ci/check-crypto-inventory.sh` obtains enabled feature edges from `cargo tree --locked -e features`, associates each checksum with its Cargo.lock package stanza, and fails if that view or the reviewed boundary changes.
 
@@ -12,7 +12,7 @@ The reviewed boundary is the exact package, version, enabled-feature, registry-c
 | --- | --- | --- | --- | --- | --- |
 | `base64` | `0.22.1` | `alloc`, `default`, `std` | `72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6` | reviewed: no unsafe source | Standard-padded encoded envelope fields plus SDK canonicality checks |
 | `getrandom` | `0.4.3` | `default`, `sys_rng` | `300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099` | reviewed: unsafe source present | Operating-system randomness for each session key and request metadata |
-| `gmcrypto-core` | `1.17.0` | `default`, `x509` | `0d5f330bcc8971bcb69bba5edd81356988b93faba460f339af5859a83a5492ec` | reviewed: no unsafe source | SM2 signing, verification and wrapping; SM3; SM4; PKCS#8, SPKI, PEM, and X.509 parsing |
+| `gmcrypto-core` | `1.18.0` | `default`, `x509` | `0418a367e01212db4e29d3cdd39dbc0c402479d7992d252b30f740221f64b104` | reviewed: no unsafe source | SM2 signing, verification and wrapping; SM3; SM4; PKCS#8, SPKI, PEM, and X.509 parsing |
 | `crypto-bigint` | `0.7.10` | `subtle`, `zeroize` | `9c035cb64cba03dad2fb921f3e218785e8cf9a41790da5eb3a1400f62fa2be11` | reviewed: unsafe source present | Backend integer arithmetic |
 | `ctutils` | `0.4.6` | `default`, `subtle` | `fe3e9d21d39e6f39ff46e03d5b621424f88ee23d8a1672c6bfc9ccc7f2da4f6a` | reviewed: no unsafe source | Backend constant-time selection and equality utilities |
 | `cmov` | `0.5.4` | `default` | `0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a` | reviewed: unsafe source present | Backend architecture-specific conditional-move primitives |
@@ -23,7 +23,7 @@ The reviewed boundary is the exact package, version, enabled-feature, registry-c
 | `zeroize` | `1.9.0` | `alloc`, `default`, `derive`, `zeroize_derive` | `e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e` | reviewed: unsafe source present | SDK-owned session-key, plaintext, and authentication-input guards |
 | `zeroize_derive` | `1.5.0` | `default` | `3c50655cbb0fe3fc43170059e702f1ce5e19b84cec58dc87b037a09935c2f328` | reviewed: no unsafe source | Macro implementation used by zeroization derives |
 
-The direct manifest requirement is `1.11` with `x509`; the reviewed resolution is `1.17.0`, whose enabled feature set also includes `default`.
+The direct manifest requirement is `1.11` with `x509`; the reviewed resolution is `1.18.0`, whose enabled feature set also includes `default`.
 
 ## AEAD feature boundary
 
@@ -31,8 +31,8 @@ The rows below are compiled only under the opt-in `aead` feature (`aead = ["gmcr
 
 | Dependency | Resolved version | Enabled features | Registry checksum | Source-scan status | SDK responsibility |
 | --- | --- | --- | --- | --- | --- |
-| `gmcrypto-core` | `1.17.0` | `default`, `sm4-aead`, `x509` | `0d5f330bcc8971bcb69bba5edd81356988b93faba460f339af5859a83a5492ec` | reviewed: no unsafe source | Adds SM4-GCM and SM4-CCM sealing and opening for the AEAD envelope mode |
-| `gmcrypto-simd` | `1.17.0` | `none` | `cb4dd15d5b51b773e12152989df76a7c387622ea136c66f2380adf9883251ec4` | reviewed: unsafe source present | GHASH carryless-multiply and SIMD SM4 S-box backends quarantined out of `gmcrypto-core` |
+| `gmcrypto-core` | `1.18.0` | `default`, `sm4-aead`, `x509` | `0418a367e01212db4e29d3cdd39dbc0c402479d7992d252b30f740221f64b104` | reviewed: no unsafe source | Adds SM4-GCM and SM4-CCM sealing and opening for the AEAD envelope mode |
+| `gmcrypto-simd` | `1.18.0` | `none` | `14c7e731273a398084daf7b65e8e7519c5535789992db3df60880fc58f0becdd` | reviewed: unsafe source present | GHASH carryless-multiply and SIMD SM4 S-box backends quarantined out of `gmcrypto-core` |
 | `cpufeatures` | `0.3.1` | `default` | `5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566` | reviewed: unsafe source present | Runtime CPU-capability detection for SIMD backend selection |
 
 The `sm4-aead` feature is atomic in `gmcrypto-core` and is defined as `["dep:gmcrypto-simd"]`: enabling GCM alone or CCM alone is not possible, and the SIMD crate is the AVX2/NEON and GHASH `clmul`/`pmull` quarantine that lets `gmcrypto-core` keep `unsafe_code = "forbid"` while `gmcrypto-simd` itself sets `unsafe_code = "warn"`. CCM itself does not call `gmcrypto-simd`; the SIMD crate is still compiled because `sm4-aead` is atomic. `cpufeatures` depends on the already-locked `libc`, which remains outside this cryptographic boundary as platform plumbing. No constant-time claim is made for the SIMD backends. Each source-scan status remains limited to the exact registry checksum in its row and is not an audit or a safety proof.
@@ -65,7 +65,15 @@ In the opt-in AEAD tier, `gmcrypto-simd` 1.17.0 adds a dependency-free `build.rs
 
 The upstream [1.17.0 gate record](https://github.com/frankxue831/gm-crypto-rs/blob/v1.17.0/docs/v1.17.0-gate1-evidence.md) tested envelope commit `96c62c15f4d180465e25106c3646994c30e55cea` against candidate `c400444e4bd884b3b30e5bf74ae2f69688fe29c2` and recorded PASS in default and AEAD configurations. On 2026-10-26, `git diff c400444e4bd884b3b30e5bf74ae2f69688fe29c2 v1.17.0 -- crates/ Cargo.toml` was empty and the tag resolved to `41d54a505071de7103f7ac1c55aa9903479a80cb`, so the recorded compatibility run attaches to the released source. That run resolved `crypto-bigint` 0.7.8 and `ctutils` 0.4.5; this lockfile resolves 0.7.10 and 0.4.6 because upstream yanked 0.7.8 on 2026-10-25. The gate record does not replace the registry review above or this crate's own local validation.
 
-Each source-scan status is limited to the exact registry checksum in its row and means only whether an unsafe item or unsafe block was found in that package's Rust source during review; it is not an audit or a safety proof. The reviewed `gmcrypto-core` 1.17.0 manifest also sets `unsafe_code = "forbid"`, limited to the checksum above.
+For the 1.17.0 to 1.18.0 refresh on 2026-11-22, the root and fuzz lockfiles change only `gmcrypto-core` and `gmcrypto-simd`. The review checked both versions of both registry archives against their SHA-256 checksums and compared their packaged sources and manifests. The 1.18.0 archives record release commit `d6a6a9e2e6fc8f08ff5253dd5989cefa60aab5a7`. The normalized manifests change the package versions and the exact core-to-SIMD dependency pin. Both feature sets and the Rust 1.87 minimum carry forward.
+
+Both envelope configurations use SM2 signing, verification and key wrapping. The backend factors out nonce sampling and digest handling while retaining the signer-ID and public-key binding. Fixed-base multiplication still scans 16 entries in each of 64 windows. Legacy CBC decryption processes up to 16 blocks per batch and wipes decrypted scratch on padding failure. Both envelope configurations use the scalar SM4 block implementation for those batches. The envelope makes no direct calls to the new HKDF-SM3, key-generation or streaming digest APIs. The core source scan found no unsafe item or block.
+
+In the AEAD configuration, the single-shot GCM and CCM routines used by the envelope now wipe their temporary keystream buffers. The envelope uses the SIMD crate for GHASH. Its only Rust source change is a documentation link in `src/sm4/sbox_x8.rs`. Its runtime code, build script and unsafe sites match 1.17.0, so its classification remains `reviewed: unsafe source present`.
+
+Upstream Gate #1 passed in default and AEAD configurations with envelope `f79543c` and core candidate `630ee75`. The published tag `v1.18.0` matches that candidate across `crates/` and `Cargo.toml`. [Gate #1 evidence](https://github.com/frankxue831/gm-crypto-rs/blob/v1.18.0/docs/v1.18.0-gate1-evidence.md)
+
+Each source-scan status is limited to the exact registry checksum in its row and means only whether an unsafe item or unsafe block was found in that package's Rust source during review; it is not an audit or a safety proof. The reviewed `gmcrypto-core` 1.18.0 manifest also sets `unsafe_code = "forbid"`, limited to the checksum above.
 
 Platform plumbing such as `cfg-if`, `libc`, and `r-efi` is intentionally outside this cryptographic boundary because it selects or binds operating-system facilities rather than implementing the reviewed cryptographic primitives. Generic-container and arithmetic scaffolding inside the resolved backend graph — `hybrid-array`, `typenum`, `num-traits`, and the build-time `autocfg` — is likewise outside the boundary because it provides type-level array and numeric-trait machinery rather than implementing the reviewed primitives. It remains pinned by Cargo.lock and therefore changes still invalidate the recorded lockfile hash. This boundary is not a claim that every transitive dependency, platform implementation, compiler, allocator, or operating system has been source-reviewed.
 

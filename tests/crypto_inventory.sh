@@ -52,14 +52,14 @@ trap 'cleanup_fixture' EXIT HUP INT TERM
 
 make_fixture
 replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
-    'Backend registry checksum: `0d5f330bcc8971bcb69bba5edd81356988b93faba460f339af5859a83a5492ec`' \
+    'Backend registry checksum: `0418a367e01212db4e29d3cdd39dbc0c402479d7992d252b30f740221f64b104`' \
     'Backend registry checksum: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
 expect_failure "altered documented backend checksum" "gmcrypto-core registry checksum differs from the inventory"
 cleanup_fixture
 
 make_fixture
 replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
-    'Reviewed Cargo.lock SHA-256: `f2d0f90ccb5889c23565bc91bb01b111dcffb697da560fc26993f2dbf39c7bd2`' \
+    'Reviewed Cargo.lock SHA-256: `f6c5db80decef989774fb531eb4e7ae2d4a1f688a69c295854630706d49ab8bd`' \
     'Reviewed Cargo.lock SHA-256: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
 expect_failure "stale documented lock hash" "Cargo.lock differs from the reviewed inventory"
 cleanup_fixture
@@ -146,32 +146,32 @@ cleanup_fixture
 
 make_fixture
 replace_text "$fixture/ci/crypto-inventory-aead.snapshot" \
-    'gmcrypto-simd|1.17.0|none|' \
-    'unexpected-simd|1.17.0|none|'
+    'gmcrypto-simd|1.18.0|none|' \
+    'unexpected-simd|1.18.0|none|'
 expect_failure "unexpected AEAD package name" "AEAD cryptographic dependency snapshot has missing or unexpected packages"
 cleanup_fixture
 
 make_fixture
 replace_text "$fixture/ci/crypto-inventory-aead.snapshot" \
-    'gmcrypto-simd|1.17.0|none|' \
-    'gmcrypto-simd|1.16.0|none|'
+    'gmcrypto-simd|1.18.0|none|' \
+    'gmcrypto-simd|1.17.0|none|'
 replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
-    '| `gmcrypto-simd` | `1.17.0` | `none` |' \
-    '| `gmcrypto-simd` | `1.16.0` | `none` |'
+    '| `gmcrypto-simd` | `1.18.0` | `none` |' \
+    '| `gmcrypto-simd` | `1.17.0` | `none` |'
 expect_failure "re-versioned AEAD package" "AEAD cryptographic dependency snapshot has missing, unexpected, or re-versioned packages"
 cleanup_fixture
 
 make_fixture
 replace_text "$fixture/ci/crypto-inventory-aead.snapshot" \
-    'gmcrypto-core|1.17.0|default,sm4-aead,x509|' \
-    'gmcrypto-core|1.17.0|default,x509|'
+    'gmcrypto-core|1.18.0|default,sm4-aead,x509|' \
+    'gmcrypto-core|1.18.0|default,x509|'
 expect_failure "AEAD snapshot feature drift" "human-readable cryptographic dependency table differs from the reviewed snapshot"
 cleanup_fixture
 
 make_fixture
 replace_text "$fixture/docs/security/cryptographic-dependencies.md" \
-    '| `gmcrypto-simd` | `1.17.0` | `none` |' \
-    '| `gmcrypto-simd` | `1.17.0` | `default` |'
+    '| `gmcrypto-simd` | `1.18.0` | `none` |' \
+    '| `gmcrypto-simd` | `1.18.0` | `default` |'
 expect_failure "doc-only AEAD feature drift" "human-readable cryptographic dependency table differs from the reviewed snapshot"
 cleanup_fixture
 
