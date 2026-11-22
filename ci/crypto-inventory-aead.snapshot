@@ -1,4 +1,4 @@
 # name|version|enabled-features|registry-checksum|unsafe-source-scan-status
 cpufeatures|0.3.1|default|5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566|reviewed-unsafe-present
-gmcrypto-core|1.17.0|default,sm4-aead,x509|0d5f330bcc8971bcb69bba5edd81356988b93faba460f339af5859a83a5492ec|reviewed-no-unsafe-source
-gmcrypto-simd|1.17.0|none|cb4dd15d5b51b773e12152989df76a7c387622ea136c66f2380adf9883251ec4|reviewed-unsafe-present
+gmcrypto-core|1.18.0|default,sm4-aead,x509|0418a367e01212db4e29d3cdd39dbc0c402479d7992d252b30f740221f64b104|reviewed-no-unsafe-source
+gmcrypto-simd|1.18.0|none|14c7e731273a398084daf7b65e8e7519c5535789992db3df60880fc58f0becdd|reviewed-unsafe-present
